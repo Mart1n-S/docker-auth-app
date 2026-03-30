@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AuthApp — Secure Access</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #06060e;
+      --surface: #0c0c18;
+      --surface-alt: #10101f;
+      --surface-hover: #16162a;
+      --border: #1e1e3a;
+      --border-glow: #2d1b69;
+      --text: #eaeaf2;
+      --text-dim: #7878a0;
+      --cyan: #00f0ff;
+      --cyan-dim: #00f0ff18;
+      --cyan-mid: #00f0ff40;
+      --magenta: #ff2daa;
+      --magenta-dim: #ff2daa20;
+      --violet: #8b5cf6;
+      --violet-glow: #8b5cf630;
+      --success: #22efb0;
+      --error: #ff4d6d;
+      --radius: 14px;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Grain overlay ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    /* ── Grid lines background ── */
+    .grid-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 80px 80px;
+      opacity: 0.15;
+      mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 80%);
+    }
+
+    /* ── Animated glow orbs ── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: 0;
+      pointer-events: none;
+      animation: orbFloat 12s ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, #00f0ff10 0%, transparent 70%);
+      top: -10%;
+      left: -5%;
+      animation-duration: 14s;
+    }
+
+    .orb-2 {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, #ff2daa0c 0%, transparent 70%);
+      bottom: -10%;
+      right: -5%;
+      animation-duration: 18s;
+      animation-delay: -4s;
+    }
+
+    .orb-3 {
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, #8b5cf60a 0%, transparent 70%);
+      top: 40%;
+      left: 50%;
+      animation-duration: 10s;
+      animation-delay: -7s;
+    }
+
+    @keyframes orbFloat {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      33% {
+        transform: translate(30px, -20px) scale(1.05);
+      }
+
+      66% {
+        transform: translate(-20px, 15px) scale(0.95);
+      }
+
+      100% {
+        transform: translate(15px, -30px) scale(1.02);
+      }
+    }
+
+    /* ── Navbar ── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 32px;
+      background: #06060eaa;
+      backdrop-filter: blur(24px) saturate(1.2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      box-shadow: 0 0 20px var(--cyan-mid), 0 0 40px #8b5cf620;
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes logoPulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 20px var(--cyan-mid), 0 0 40px #8b5cf620;
+      }
+
+      50% {
+        box-shadow: 0 0 30px var(--cyan-mid), 0 0 60px #8b5cf630;
+      }
+    }
+
+    .logo-text {
+      background: linear-gradient(90deg, var(--cyan), var(--violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      cursor: pointer;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+      background: #ffffff08;
+    }
+
+    .nav-links a.active {
+      color: var(--cyan);
+      background: var(--cyan-dim);
+    }
+
+    .nav-links .btn-logout {
+      color: var(--error);
+      border: 1px solid #ff4d6d25;
+    }
+
+    .nav-links .btn-logout:hover {
+      background: #ff4d6d12;
+    }
+
+    /* ── Pages ── */
+    .page {
+      display: none;
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      padding-top: 80px;
+    }
+
+    .page.active {
+      display: block;
+      animation: pageIn 0.5s ease-out;
+    }
+
+    @keyframes pageIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Hero ── */
+    .hero {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 80px);
+      padding: 40px 24px;
+      gap: 60px;
+    }
+
+    .hero-content {
+      max-width: 560px;
+      flex-shrink: 0;
+    }
+
+    .hero-3d {
+      width: 420px;
+      height: 420px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    #hero-three-canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 18px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 28px;
+      animation: fadeSlideUp 0.6s ease-out both;
+      animation-delay: 0.1s;
+    }
+
+    .hero-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: dotBlink 2s ease-in-out infinite;
+    }
+
+    @keyframes dotBlink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    .hero h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(2.4rem, 5vw, 3.6rem);
+      font-weight: 700;
+      line-height: 1.08;
+      margin-bottom: 22px;
+      animation: fadeSlideUp 0.6s ease-out both;
+      animation-delay: 0.25s;
+    }
+
+    .hero h1 .line-1 {
+      color: var(--text);
+    }
+
+    .hero h1 .line-2 {
+      background: linear-gradient(90deg, var(--cyan), var(--magenta));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 1.05rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      font-weight: 300;
+      animation: fadeSlideUp 0.6s ease-out both;
+      animation-delay: 0.4s;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      animation: fadeSlideUp 0.6s ease-out both;
+      animation-delay: 0.55s;
+    }
+
+    .tech-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 28px;
+      animation: fadeSlideUp 0.6s ease-out both;
+      animation-delay: 0.7s;
+    }
+
+    .tech-tag {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.5px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: var(--surface);
+      transition: all 0.3s;
+    }
+
+    .tech-tag:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 16px var(--cyan-dim);
+    }
+
+    @keyframes fadeSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 13px 30px;
+      border-radius: var(--radius);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      color: #fff;
+      box-shadow: 0 4px 24px var(--cyan-mid), 0 0 60px #8b5cf615;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 40px var(--cyan-mid), 0 0 80px #8b5cf625;
+    }
+
+    .btn-primary:active {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #ffffff20, transparent);
+      animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+
+      50% {
+        left: 100%;
+      }
+
+      100% {
+        left: 100%;
+      }
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-dim);
+    }
+
+    /* ── Auth forms ── */
+    .auth-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 80px);
+      padding: 40px 24px;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 44px 36px;
+      position: relative;
+      overflow: hidden;
+      animation: cardAppear 0.5s ease-out both;
+    }
+
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--violet), transparent);
+      opacity: 0.6;
+    }
+
+    @keyframes cardAppear {
+      from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .auth-card h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.7rem;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, var(--text), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .auth-card .subtitle {
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      margin-bottom: 32px;
+      font-weight: 300;
+    }
+
+    .form-group {
+      margin-bottom: 22px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.3px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 13px 18px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px var(--cyan-dim), 0 0 20px var(--cyan-dim);
+    }
+
+    .form-group input::placeholder {
+      color: #4a4a6a;
+    }
+
+    .auth-card .btn {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: 26px;
+      font-size: 0.84rem;
+      color: var(--text-dim);
+    }
+
+    .auth-footer a {
+      color: var(--cyan);
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .auth-footer a:hover {
+      color: var(--magenta);
+    }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.84rem;
+      margin-bottom: 20px;
+      display: none;
+      font-weight: 500;
+    }
+
+    .alert.error {
+      display: block;
+      background: #ff4d6d12;
+      border: 1px solid #ff4d6d25;
+      color: var(--error);
+    }
+
+    .alert.success {
+      display: block;
+      background: #22efb012;
+      border: 1px solid #22efb025;
+      color: var(--success);
+    }
+
+    /* ── Dashboard ── */
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 80px);
+      padding: 40px 24px;
+    }
+
+    .dashboard-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 52px 44px;
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      animation: cardAppear 0.5s ease-out both;
+    }
+
+    .dashboard-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--success), var(--cyan), transparent);
+    }
+
+    .avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--magenta));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      margin: 0 auto 28px;
+      color: #fff;
+      box-shadow: 0 0 40px var(--cyan-mid), 0 0 80px #ff2daa15;
+      animation: avatarFloat 4s ease-in-out infinite;
+    }
+
+    @keyframes avatarFloat {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    .dashboard-card h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6rem;
+      margin-bottom: 8px;
+    }
+
+    .dashboard-card .email-display {
+      color: var(--cyan);
+      font-size: 1rem;
+      margin-bottom: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    .info-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+      text-align: left;
+    }
+
+    .info-box strong {
+      color: var(--text);
+    }
+
+    .info-box code {
+      color: var(--cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      background: var(--cyan-dim);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #ffffff30;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ── CSS Particles ── */
+    .particle {
+      position: fixed;
+      width: 3px;
+      height: 3px;
+      background: var(--cyan);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0;
+      animation: particleFly linear infinite;
+    }
+
+    @keyframes particleFly {
+      0% {
+        opacity: 0;
+        transform: translateY(100vh) scale(0);
+      }
+
+      10% {
+        opacity: 0.6;
+      }
+
+      90% {
+        opacity: 0.6;
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-20vh) scale(1);
+      }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .hero {
+        flex-direction: column-reverse;
+        gap: 20px;
+        text-align: center;
+      }
+
+      .hero-content {
+        max-width: 100%;
+      }
+
+      .hero-3d {
+        width: 280px;
+        height: 280px;
+      }
+
+      .hero-actions {
+        justify-content: center;
+      }
+
+      .tech-tags {
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 500px) {
+      nav {
+        padding: 12px 16px;
+      }
+
+      .auth-card {
+        padding: 32px 22px;
+        border-radius: 16px;
+      }
+
+      .dashboard-card {
+        padding: 36px 24px;
+      }
+
+      .hero-3d {
+        width: 220px;
+        height: 220px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Background layers -->
+  <div class="grid-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div id="particles"></div>
+
+  <!-- ── Navbar ── -->
+  <nav>
+    <div class="logo" onclick="navigate('home')">
+      <div class="logo-icon">&#x1f6e1;</div>
+      <span class="logo-text">AuthApp</span>
+    </div>
+    <div class="nav-links" id="navLinks"></div>
+  </nav>
+
+  <!-- ── Page Accueil ── -->
+  <div id="page-home" class="page active">
+    <div class="hero">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <div class="dot"></div>
+          Dockeris&eacute; &amp; Pr&ecirc;t &agrave; d&eacute;ployer
+        </div>
+        <h1>
+          <span class="line-1">Authentification</span><br>
+          <span class="line-2">S&eacute;curis&eacute;e.</span>
+        </h1>
+        <p>Inscription, connexion JWT et routes prot&eacute;g&eacute;es dans une architecture conteneuris&eacute;e.
+          Trois services, un seul <strong style="color:var(--text)">docker-compose up</strong>.</p>
+        <div class="hero-actions" id="heroActions"></div>
+        <div class="tech-tags">
+          <span class="tech-tag">NODE.JS</span>
+          <span class="tech-tag">EXPRESS</span>
+          <span class="tech-tag">JWT</span>
+          <span class="tech-tag">MONGODB</span>
+          <span class="tech-tag">DOCKER</span>
+          <span class="tech-tag">NGINX</span>
+        </div>
+      </div>
+      <div class="hero-3d">
+        <canvas id="hero-three-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page Inscription ── -->
+  <div id="page-register" class="page">
+    <div class="auth-container">
+      <div class="auth-card">
+        <h2>Inscription</h2>
+        <p class="subtitle">Cr&eacute;ez votre compte en quelques secondes</p>
+        <div id="registerAlert" class="alert"></div>
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input type="email" id="regEmail" placeholder="vous@exemple.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Mot de passe</label>
+          <input type="password" id="regPassword" placeholder="6 caract&egrave;res minimum"
+            autocomplete="new-password" />
+        </div>
+        <button class="btn btn-primary" id="registerBtn" onclick="handleRegister()">Cr&eacute;er mon compte</button>
+        <div class="auth-footer">
+          D&eacute;j&agrave; un compte ? <a onclick="navigate('login')">Se connecter</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page Connexion ── -->
+  <div id="page-login" class="page">
+    <div class="auth-container">
+      <div class="auth-card">
+        <h2>Connexion</h2>
+        <p class="subtitle">Heureux de vous revoir</p>
+        <div id="loginAlert" class="alert"></div>
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" placeholder="vous@exemple.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Mot de passe</label>
+          <input type="password" id="loginPassword" placeholder="Votre mot de passe" autocomplete="current-password" />
+        </div>
+        <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">Se connecter</button>
+        <div class="auth-footer">
+          Pas encore de compte ? <a onclick="navigate('register')">S'inscrire</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page Dashboard (prot&eacute;g&eacute;e) ── -->
+  <div id="page-dashboard" class="page">
+    <div class="dashboard">
+      <div class="dashboard-card">
+        <div class="avatar" id="avatarLetter">?</div>
+        <h2>Bienvenue !</h2>
+        <p class="email-display" id="userEmail">-</p>
+        <div class="info-box">
+          &#x1f512; Cette page est <strong>prot&eacute;g&eacute;e</strong>. Elle n'est accessible qu'avec un token JWT
+          valide.<br><br>
+          Votre token est stock&eacute; dans <code>localStorage</code> et envoy&eacute; via le header
+          <code>Authorization: Bearer &lt;token&gt;</code> &agrave; chaque requ&ecirc;te API prot&eacute;g&eacute;e.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ══════════════════════════════════════════════
+    //  THREE.JS — 3D Animated Torus Knot Scene
+    // ══════════════════════════════════════════════
+    (function init3D() {
+      const canvas = document.getElementById('hero-three-canvas');
+      if (!canvas) return;
+
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      function getSize() {
+        return { w: canvas.clientWidth, h: canvas.clientHeight };
+      }
+
+      let { w, h } = getSize();
+      renderer.setSize(w, h);
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+      camera.position.z = 5;
+
+      // ── Main torus knot ──
+      const knotGeom = new THREE.TorusKnotGeometry(1.2, 0.35, 200, 32, 2, 3);
+      const knotMat = new THREE.MeshStandardMaterial({
+        color: 0x8b5cf6,
+        emissive: 0x00f0ff,
+        emissiveIntensity: 0.15,
+        metalness: 0.9,
+        roughness: 0.15,
+      });
+      const knot = new THREE.Mesh(knotGeom, knotMat);
+      scene.add(knot);
+
+      // ── Wireframe overlay ──
+      const wireGeom = new THREE.TorusKnotGeometry(1.22, 0.36, 80, 16, 2, 3);
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.08,
+      });
+      const wire = new THREE.Mesh(wireGeom, wireMat);
+      scene.add(wire);
+
+      // ── Orbital rings ──
+      const ringGeom = new THREE.TorusGeometry(2.2, 0.02, 16, 100);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.25 });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      scene.add(ring);
+
+      const ring2Geom = new THREE.TorusGeometry(2.5, 0.015, 16, 100);
+      const ring2Mat = new THREE.MeshBasicMaterial({ color: 0xff2daa, transparent: true, opacity: 0.15 });
+      const ring2 = new THREE.Mesh(ring2Geom, ring2Mat);
+      ring2.rotation.x = Math.PI / 3;
+      ring2.rotation.y = Math.PI / 6;
+      scene.add(ring2);
+
+      // ── 3D particles ──
+      const pCount = 150;
+      const pGeom = new THREE.BufferGeometry();
+      const pos = new Float32Array(pCount * 3);
+      for (let i = 0; i < pCount * 3; i++) pos[i] = (Math.random() - 0.5) * 8;
+      pGeom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pMat = new THREE.PointsMaterial({ color: 0x00f0ff, size: 0.025, transparent: true, opacity: 0.6 });
+      const pts = new THREE.Points(pGeom, pMat);
+      scene.add(pts);
+
+      // ── Lights ──
+      scene.add(new THREE.AmbientLight(0x222244, 0.5));
+      const l1 = new THREE.PointLight(0x00f0ff, 1.5, 20); l1.position.set(3, 3, 3); scene.add(l1);
+      const l2 = new THREE.PointLight(0xff2daa, 1, 20); l2.position.set(-3, -2, 2); scene.add(l2);
+      const l3 = new THREE.PointLight(0x8b5cf6, 0.8, 20); l3.position.set(0, 3, -3); scene.add(l3);
+
+      // ── Mouse tracking ──
+      let mx = 0, my = 0, trx = 0, try_ = 0;
+      document.addEventListener('mousemove', e => {
+        mx = (e.clientX / window.innerWidth) * 2 - 1;
+        my = (e.clientY / window.innerHeight) * 2 - 1;
+      });
+
+      // ── Resize ──
+      window.addEventListener('resize', () => {
+        let { w, h } = getSize();
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      });
+
+      // ── Render loop ──
+      const clock = new THREE.Clock();
+      (function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        try_ += (mx * 0.5 - try_) * 0.03;
+        trx += (-my * 0.3 - trx) * 0.03;
+
+        knot.rotation.x = t * 0.15 + trx;
+        knot.rotation.y = t * 0.2 + try_;
+        knot.rotation.z = t * 0.05;
+        wire.rotation.copy(knot.rotation);
+
+        ring.rotation.z = t * 0.3;
+        ring2.rotation.z = -t * 0.2;
+        ring2.rotation.x = Math.PI / 3 + Math.sin(t * 0.5) * 0.2;
+
+        pts.rotation.y = t * 0.02;
+        pts.rotation.x = Math.sin(t * 0.1) * 0.1;
+
+        knotMat.emissiveIntensity = 0.15 + Math.sin(t * 2) * 0.08;
+
+        l1.position.x = Math.sin(t * 0.5) * 4;
+        l1.position.y = Math.cos(t * 0.3) * 3;
+        l2.position.x = Math.cos(t * 0.4) * 3;
+        l2.position.z = Math.sin(t * 0.6) * 3;
+
+        renderer.render(scene, camera);
+      })();
+    })();
+
+    // ══════════════════════════════════════════════
+    //  CSS FLOATING PARTICLES
+    // ══════════════════════════════════════════════
+    (function () {
+      const c = document.getElementById('particles');
+      const cols = ['var(--cyan)', 'var(--magenta)', 'var(--violet)', 'var(--success)'];
+      for (let i = 0; i < 25; i++) {
+        const p = document.createElement('div');
+        p.classList.add('particle');
+        p.style.left = Math.random() * 100 + '%';
+        p.style.animationDuration = (8 + Math.random() * 14) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+        p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+        p.style.background = cols[Math.floor(Math.random() * cols.length)];
+        c.appendChild(p);
+      }
+    })();
+
+    // ══════════════════════════════════════════════
+    //  SPA AUTH LOGIC
+    // ══════════════════════════════════════════════
+    let currentPage = 'home';
+
+    function getToken() { return localStorage.getItem('token'); }
+    function getUser() { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } }
+    function isLoggedIn() { return !!getToken(); }
+
+    function navigate(page) {
+      if (page === 'dashboard' && !isLoggedIn()) {
+        page = 'login';
+        showAlert('loginAlert', 'Vous devez \u00eatre connect\u00e9 pour acc\u00e9der \u00e0 cette page.', 'error');
+      }
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const el = document.getElementById('page-' + page);
+      if (el) el.classList.add('active');
+      currentPage = page;
+      updateNav();
+      if (page === 'dashboard' && isLoggedIn()) loadUserInfo();
+    }
+
+    function updateNav() {
+      const nav = document.getElementById('navLinks');
+      const hero = document.getElementById('heroActions');
+      if (isLoggedIn()) {
+        nav.innerHTML = `
+          <a onclick="navigate('home')" class="${currentPage === 'home' ? 'active' : ''}">Accueil</a>
+          <a onclick="navigate('dashboard')" class="${currentPage === 'dashboard' ? 'active' : ''}">Dashboard</a>
+          <a onclick="logout()" class="btn-logout">D\u00e9connexion</a>`;
+        if (hero) hero.innerHTML = `<button class="btn btn-primary" onclick="navigate('dashboard')">Mon Dashboard \u2192</button>`;
+      } else {
+        nav.innerHTML = `
+          <a onclick="navigate('home')" class="${currentPage === 'home' ? 'active' : ''}">Accueil</a>
+          <a onclick="navigate('login')" class="${currentPage === 'login' ? 'active' : ''}">Connexion</a>
+          <a onclick="navigate('register')" class="${currentPage === 'register' ? 'active' : ''}">Inscription</a>`;
+        if (hero) hero.innerHTML = `
+          <button class="btn btn-primary" onclick="navigate('register')">S'inscrire \u2192</button>
+          <button class="btn btn-secondary" onclick="navigate('login')">Se connecter</button>`;
+      }
+    }
+
+    function showAlert(id, msg, type) { const e = document.getElementById(id); e.textContent = msg; e.className = 'alert ' + type; }
+    function clearAlert(id) { const e = document.getElementById(id); e.className = 'alert'; e.textContent = ''; }
+
+    function setLoading(btnId, on) {
+      const b = document.getElementById(btnId);
+      if (on) { b.disabled = true; b.dataset.text = b.textContent; b.innerHTML = '<span class="spinner"></span>'; }
+      else { b.disabled = false; b.textContent = b.dataset.text; }
+    }
+
+    async function handleRegister() {
+      clearAlert('registerAlert');
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      if (!email || !password) return showAlert('registerAlert', 'Veuillez remplir tous les champs.', 'error');
+      setLoading('registerBtn', true);
+      try {
+        const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const data = await res.json();
+        if (!res.ok) { showAlert('registerAlert', data.message, 'error'); return; }
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        navigate('dashboard');
+      } catch { showAlert('registerAlert', 'Erreur r\u00e9seau. V\u00e9rifiez que le serveur est lanc\u00e9.', 'error'); }
+      finally { setLoading('registerBtn', false); }
+    }
+
+    async function handleLogin() {
+      clearAlert('loginAlert');
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      if (!email || !password) return showAlert('loginAlert', 'Veuillez remplir tous les champs.', 'error');
+      setLoading('loginBtn', true);
+      try {
+        const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const data = await res.json();
+        if (!res.ok) { showAlert('loginAlert', data.message, 'error'); return; }
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        navigate('dashboard');
+      } catch { showAlert('loginAlert', 'Erreur r\u00e9seau. V\u00e9rifiez que le serveur est lanc\u00e9.', 'error'); }
+      finally { setLoading('loginBtn', false); }
+    }
+
+    async function loadUserInfo() {
+      try {
+        const res = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+        if (!res.ok) { logout(); return; }
+        const data = await res.json();
+        document.getElementById('userEmail').textContent = data.user.email;
+        document.getElementById('avatarLetter').textContent = data.user.email.charAt(0).toUpperCase();
+      } catch { logout(); }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('home');
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (currentPage === 'register') handleRegister();
+      if (currentPage === 'login') handleLogin();
+    });
+
+    updateNav();
+  </script>
+</body>
+
+</html>
