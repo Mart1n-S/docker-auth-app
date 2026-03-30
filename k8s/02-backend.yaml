@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authapp-backend
+  labels:
+    app: authapp-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authapp-backend
+  template:
+    metadata:
+      labels:
+        app: authapp-backend
+    spec:
+      containers:
+        - name: backend
+          image: mart1nsmn/authapp-backend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MONGO_URI
+              value: "mongodb://mongo:27017/authdb"
+            - name: JWT_SECRET
+              value: "super_secret_key_change_me"
+            - name: PORT
+              value: "3000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authapp-backend
+spec:
+  selector:
+    app: authapp-backend
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP

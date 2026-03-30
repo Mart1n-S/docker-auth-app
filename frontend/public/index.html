@@ -48,6 +48,129 @@
       overflow-x: hidden;
     }
 
+    body.custom-cursor-active,
+    body.custom-cursor-active * {
+      cursor: none !important;
+    }
+
+    .spaceship-cursor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 34px;
+      height: 34px;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      transition: opacity 0.2s ease;
+    }
+
+    .spaceship-cursor.visible {
+      opacity: 1;
+    }
+
+    .spaceship-cursor .ship {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-origin: 50% 50%;
+      filter: drop-shadow(0 0 10px #00f0ff88) drop-shadow(0 0 16px #8b5cf655);
+    }
+
+    .spaceship-cursor .core {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 18px;
+      height: 12px;
+      border-radius: 8px 8px 4px 4px;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #00f0ff, #8b5cf6);
+      border: 1px solid #dffaffaa;
+    }
+
+    .spaceship-cursor .cockpit {
+      position: absolute;
+      left: 50%;
+      top: 34%;
+      width: 8px;
+      height: 6px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: #ffffffd0;
+      box-shadow: 0 0 8px #ffffff88;
+    }
+
+    .spaceship-cursor .wing {
+      position: absolute;
+      top: 50%;
+      width: 9px;
+      height: 7px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, #4af6ff, #00a3bd);
+      clip-path: polygon(0 50%, 100% 0, 100% 100%);
+      opacity: 0.95;
+    }
+
+    .spaceship-cursor .wing.left {
+      left: 5px;
+      transform: translateY(-50%) scaleX(-1);
+    }
+
+    .spaceship-cursor .wing.right {
+      right: 5px;
+    }
+
+    .spaceship-cursor .nose {
+      position: absolute;
+      left: 50%;
+      top: 4px;
+      width: 0;
+      height: 0;
+      transform: translateX(-50%);
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 11px solid #cbf9ff;
+      filter: drop-shadow(0 0 6px #00f0ff88);
+    }
+
+    .spaceship-cursor .thruster {
+      position: absolute;
+      left: 50%;
+      bottom: 2px;
+      width: 4px;
+      height: 8px;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, #fff8cc, #ff6d00);
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 0 8px #ff8e3d;
+      animation: thrusterPulse 0.12s ease-in-out infinite alternate;
+    }
+
+    @keyframes thrusterPulse {
+      from {
+        height: 7px;
+        opacity: 0.8;
+      }
+
+      to {
+        height: 11px;
+        opacity: 1;
+      }
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      .spaceship-cursor {
+        display: none;
+      }
+
+      body.custom-cursor-active,
+      body.custom-cursor-active * {
+        cursor: auto !important;
+      }
+    }
+
     /* ── Grain overlay ── */
     body::after {
       content: '';
@@ -143,7 +266,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 100;
+      z-index: 120;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -198,6 +321,84 @@
       display: flex;
       gap: 6px;
       align-items: center;
+    }
+
+    .nav-toggle {
+      display: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .nav-toggle:hover {
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px var(--cyan-dim);
+    }
+
+    .nav-toggle-bars {
+      width: 18px;
+      height: 14px;
+      position: relative;
+    }
+
+    .nav-toggle-bars span {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      border-radius: 2px;
+      background: currentColor;
+      transition: transform 0.3s ease, opacity 0.25s ease, top 0.3s ease;
+    }
+
+    .nav-toggle-bars span:nth-child(1) {
+      top: 0;
+    }
+
+    .nav-toggle-bars span:nth-child(2) {
+      top: 6px;
+    }
+
+    .nav-toggle-bars span:nth-child(3) {
+      top: 12px;
+    }
+
+    body.nav-open .nav-toggle-bars span:nth-child(1) {
+      top: 6px;
+      transform: rotate(45deg);
+    }
+
+    body.nav-open .nav-toggle-bars span:nth-child(2) {
+      opacity: 0;
+    }
+
+    body.nav-open .nav-toggle-bars span:nth-child(3) {
+      top: 6px;
+      transform: rotate(-45deg);
+    }
+
+    .nav-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      background: #05050c73;
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    body.nav-open .nav-overlay {
+      opacity: 1;
+      pointer-events: auto;
     }
 
     .nav-links a {
@@ -788,11 +989,62 @@
       }
     }
 
-    @media (max-width: 500px) {
+    @media (max-width: 760px) {
       nav {
         padding: 12px 16px;
       }
 
+      .logo {
+        font-size: 1rem;
+      }
+
+      .logo-icon {
+        width: 30px;
+        height: 30px;
+      }
+
+      .nav-toggle {
+        display: inline-flex;
+      }
+
+      .nav-links {
+        position: fixed;
+        top: 68px;
+        left: 12px;
+        right: 12px;
+        z-index: 115;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #0b0b18f0;
+        backdrop-filter: blur(20px);
+        transform: translateY(-10px) scale(0.98);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+      }
+
+      body.nav-open .nav-links {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .nav-links a {
+        width: 100%;
+        text-align: center;
+        padding: 11px 14px;
+      }
+
+      .nav-links .btn-logout {
+        margin-top: 2px;
+      }
+    }
+
+    @media (max-width: 500px) {
       .auth-card {
         padding: 32px 22px;
         border-radius: 16px;
@@ -818,6 +1070,16 @@
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
   <div id="particles"></div>
+  <div class="spaceship-cursor" id="spaceshipCursor" aria-hidden="true">
+    <div class="ship" id="spaceshipShip">
+      <div class="nose"></div>
+      <div class="wing left"></div>
+      <div class="wing right"></div>
+      <div class="core"></div>
+      <div class="cockpit"></div>
+      <div class="thruster"></div>
+    </div>
+  </div>
 
   <!-- ── Navbar ── -->
   <nav>
@@ -825,8 +1087,16 @@
       <div class="logo-icon">&#x1f6e1;</div>
       <span class="logo-text">AuthApp</span>
     </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav-toggle-bars" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    </button>
     <div class="nav-links" id="navLinks"></div>
   </nav>
+  <div class="nav-overlay" id="navOverlay"></div>
 
   <!-- ── Page Accueil ── -->
   <div id="page-home" class="page active">
@@ -924,7 +1194,58 @@
 
   <script>
     // ══════════════════════════════════════════════
-    //  THREE.JS — 3D Animated Torus Knot Scene
+    //  SPACESHIP CURSOR
+    // ══════════════════════════════════════════════
+    (function initSpaceshipCursor() {
+      const cursor = document.getElementById('spaceshipCursor');
+      const ship = document.getElementById('spaceshipShip');
+      const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+      if (!cursor || !ship || !finePointer) return;
+
+      document.body.classList.add('custom-cursor-active');
+
+      let mouseX = window.innerWidth / 2;
+      let mouseY = window.innerHeight / 2;
+      let x = mouseX;
+      let y = mouseY;
+      let vx = 0;
+      let vy = 0;
+      let visible = false;
+
+      window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (!visible) {
+          visible = true;
+          cursor.classList.add('visible');
+        }
+      });
+
+      window.addEventListener('mouseout', (e) => {
+        if (e.relatedTarget) return;
+        visible = false;
+        cursor.classList.remove('visible');
+      });
+
+      (function animateCursor() {
+        requestAnimationFrame(animateCursor);
+
+        const dx = mouseX - x;
+        const dy = mouseY - y;
+        vx = dx * 0.2;
+        vy = dy * 0.2;
+        x += dx * 0.22;
+        y += dy * 0.22;
+
+        const angle = Math.atan2(vy, vx) + Math.PI / 2;
+        ship.style.transform = `rotate(${angle}rad)`;
+        cursor.style.transform = `translate(${x - 17}px, ${y - 17}px)`;
+      })();
+    })();
+
+    // ══════════════════════════════════════════════
+    //  THREE.JS — 3D Interactive Scene
     // ══════════════════════════════════════════════
     (function init3D() {
       const canvas = document.getElementById('hero-three-canvas');
@@ -944,7 +1265,7 @@
       const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
       camera.position.z = 5;
 
-      // ── Main torus knot ──
+      // ── Objet principal ──
       const knotGeom = new THREE.TorusKnotGeometry(1.2, 0.35, 200, 32, 2, 3);
       const knotMat = new THREE.MeshStandardMaterial({
         color: 0x8b5cf6,
@@ -956,7 +1277,6 @@
       const knot = new THREE.Mesh(knotGeom, knotMat);
       scene.add(knot);
 
-      // ── Wireframe overlay ──
       const wireGeom = new THREE.TorusKnotGeometry(1.22, 0.36, 80, 16, 2, 3);
       const wireMat = new THREE.MeshBasicMaterial({
         color: 0x00f0ff,
@@ -967,41 +1287,121 @@
       const wire = new THREE.Mesh(wireGeom, wireMat);
       scene.add(wire);
 
-      // ── Orbital rings ──
-      const ringGeom = new THREE.TorusGeometry(2.2, 0.02, 16, 100);
+      // ── Anneaux ──
       const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.25 });
-      const ring = new THREE.Mesh(ringGeom, ringMat);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(2.2, 0.02, 16, 100),
+        ringMat
+      );
       ring.rotation.x = Math.PI / 2;
       scene.add(ring);
 
-      const ring2Geom = new THREE.TorusGeometry(2.5, 0.015, 16, 100);
       const ring2Mat = new THREE.MeshBasicMaterial({ color: 0xff2daa, transparent: true, opacity: 0.15 });
-      const ring2 = new THREE.Mesh(ring2Geom, ring2Mat);
+      const ring2 = new THREE.Mesh(
+        new THREE.TorusGeometry(2.5, 0.015, 16, 100),
+        ring2Mat
+      );
       ring2.rotation.x = Math.PI / 3;
       ring2.rotation.y = Math.PI / 6;
       scene.add(ring2);
 
-      // ── 3D particles ──
+      // ── Particules ──
       const pCount = 150;
       const pGeom = new THREE.BufferGeometry();
       const pos = new Float32Array(pCount * 3);
       for (let i = 0; i < pCount * 3; i++) pos[i] = (Math.random() - 0.5) * 8;
       pGeom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      const pMat = new THREE.PointsMaterial({ color: 0x00f0ff, size: 0.025, transparent: true, opacity: 0.6 });
-      const pts = new THREE.Points(pGeom, pMat);
+      const pts = new THREE.Points(
+        pGeom,
+        new THREE.PointsMaterial({ color: 0x00f0ff, size: 0.025, transparent: true, opacity: 0.6 })
+      );
       scene.add(pts);
 
-      // ── Lights ──
+      // ── Lumières ──
       scene.add(new THREE.AmbientLight(0x222244, 0.5));
       const l1 = new THREE.PointLight(0x00f0ff, 1.5, 20); l1.position.set(3, 3, 3); scene.add(l1);
       const l2 = new THREE.PointLight(0xff2daa, 1, 20); l2.position.set(-3, -2, 2); scene.add(l2);
       const l3 = new THREE.PointLight(0x8b5cf6, 0.8, 20); l3.position.set(0, 3, -3); scene.add(l3);
 
-      // ── Mouse tracking ──
-      let mx = 0, my = 0, trx = 0, try_ = 0;
-      document.addEventListener('mousemove', e => {
-        mx = (e.clientX / window.innerWidth) * 2 - 1;
-        my = (e.clientY / window.innerHeight) * 2 - 1;
+      // ═══════════════════════════════
+      // INTERACTIONS
+      // ═══════════════════════════════
+      let isDragging = false;
+      let prevX = 0, prevY = 0;
+      let velocityX = 0, velocityY = 0;
+      let pressStart = 0;
+      let dragDistance = 0;
+      let explosionStart = -1;
+      const explosionDuration = 700;
+
+      canvas.style.cursor = "grab";
+
+      canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevX = e.clientX;
+        prevY = e.clientY;
+        pressStart = performance.now();
+        dragDistance = 0;
+        canvas.style.cursor = "grabbing";
+      });
+
+      window.addEventListener('mouseup', () => {
+        isDragging = false;
+        canvas.style.cursor = "grab";
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        dragDistance += Math.abs(dx) + Math.abs(dy);
+
+        knot.rotation.y += dx * 0.005;
+        knot.rotation.x += dy * 0.005;
+
+        wire.rotation.copy(knot.rotation);
+
+        velocityX = dx * 0.002;
+        velocityY = dy * 0.002;
+
+        prevX = e.clientX;
+        prevY = e.clientY;
+      });
+
+      // ── Hover detection ──
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      let isHover = false;
+
+      canvas.addEventListener('mousemove', (event) => {
+        const rect = canvas.getBoundingClientRect();
+
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(knot);
+
+        if (intersects.length > 0) {
+          isHover = true;
+          if (!isDragging) canvas.style.cursor = "pointer";
+        } else {
+          isHover = false;
+          if (!isDragging) canvas.style.cursor = "grab";
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        isHover = false;
+        if (!isDragging) canvas.style.cursor = 'grab';
+      });
+
+      canvas.addEventListener('click', () => {
+        const clickDuration = performance.now() - pressStart;
+        const isShortClick = clickDuration < 240 && dragDistance < 8;
+        if (!isShortClick) return;
+        explosionStart = performance.now();
       });
 
       // ── Resize ──
@@ -1012,40 +1412,64 @@
         renderer.setSize(w, h);
       });
 
-      // ── Render loop ──
+      // ── Animation ──
       const clock = new THREE.Clock();
+
       (function animate() {
         requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
+        const now = performance.now();
 
-        try_ += (mx * 0.5 - try_) * 0.03;
-        trx += (-my * 0.3 - trx) * 0.03;
+        if (!isDragging) {
+          knot.rotation.y += velocityX;
+          knot.rotation.x += velocityY;
 
-        knot.rotation.x = t * 0.15 + trx;
-        knot.rotation.y = t * 0.2 + try_;
-        knot.rotation.z = t * 0.05;
+          velocityX *= 0.95;
+          velocityY *= 0.95;
+        }
+
+        // rotation auto légère
+        knot.rotation.z += 0.002;
         wire.rotation.copy(knot.rotation);
 
         ring.rotation.z = t * 0.3;
         ring2.rotation.z = -t * 0.2;
-        ring2.rotation.x = Math.PI / 3 + Math.sin(t * 0.5) * 0.2;
 
         pts.rotation.y = t * 0.02;
-        pts.rotation.x = Math.sin(t * 0.1) * 0.1;
 
-        knotMat.emissiveIntensity = 0.15 + Math.sin(t * 2) * 0.08;
+        // hover effect
+        let targetEmissive = isHover ? 0.5 : 0.15;
+        let targetScale = isHover ? 1.1 : 1;
+        let ringBoost = 0;
 
+        if (explosionStart >= 0) {
+          const progress = (now - explosionStart) / explosionDuration;
+          if (progress >= 1) {
+            explosionStart = -1;
+          } else {
+            const burst = Math.sin(progress * Math.PI);
+            targetEmissive += burst * 1.2;
+            targetScale += burst * 0.85;
+            ringBoost = burst;
+            pts.rotation.y = t * 0.02 + burst * 0.35;
+          }
+        }
+
+        knotMat.emissiveIntensity += (targetEmissive - knotMat.emissiveIntensity) * 0.14;
+        knot.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+        ringMat.opacity = 0.25 + ringBoost * 0.5;
+        ring2Mat.opacity = 0.15 + ringBoost * 0.35;
+
+        // lumières dynamiques
         l1.position.x = Math.sin(t * 0.5) * 4;
         l1.position.y = Math.cos(t * 0.3) * 3;
-        l2.position.x = Math.cos(t * 0.4) * 3;
-        l2.position.z = Math.sin(t * 0.6) * 3;
 
         renderer.render(scene, camera);
       })();
     })();
 
     // ══════════════════════════════════════════════
-    //  CSS FLOATING PARTICLES
+    //  PARTICULES CSS
     // ══════════════════════════════════════════════
     (function () {
       const c = document.getElementById('particles');
@@ -1063,9 +1487,27 @@
     })();
 
     // ══════════════════════════════════════════════
-    //  SPA AUTH LOGIC
+    //  AUTH LOGIC (inchangé)
     // ══════════════════════════════════════════════
     let currentPage = 'home';
+    const navToggle = document.getElementById('navToggle');
+    const navOverlay = document.getElementById('navOverlay');
+
+    function closeMobileNav() {
+      document.body.classList.remove('nav-open');
+      if (navToggle) navToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleMobileNav() {
+      const isOpen = document.body.classList.toggle('nav-open');
+      if (navToggle) navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
+    if (navToggle) navToggle.addEventListener('click', toggleMobileNav);
+    if (navOverlay) navOverlay.addEventListener('click', closeMobileNav);
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 760) closeMobileNav();
+    });
 
     function getToken() { return localStorage.getItem('token'); }
     function getUser() { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } }
@@ -1074,8 +1516,9 @@
     function navigate(page) {
       if (page === 'dashboard' && !isLoggedIn()) {
         page = 'login';
-        showAlert('loginAlert', 'Vous devez \u00eatre connect\u00e9 pour acc\u00e9der \u00e0 cette page.', 'error');
+        showAlert('loginAlert', 'Vous devez être connecté pour accéder à cette page.', 'error');
       }
+      closeMobileNav();
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       const el = document.getElementById('page-' + page);
       if (el) el.classList.add('active');
@@ -1089,72 +1532,117 @@
       const hero = document.getElementById('heroActions');
       if (isLoggedIn()) {
         nav.innerHTML = `
-          <a onclick="navigate('home')" class="${currentPage === 'home' ? 'active' : ''}">Accueil</a>
-          <a onclick="navigate('dashboard')" class="${currentPage === 'dashboard' ? 'active' : ''}">Dashboard</a>
-          <a onclick="logout()" class="btn-logout">D\u00e9connexion</a>`;
-        if (hero) hero.innerHTML = `<button class="btn btn-primary" onclick="navigate('dashboard')">Mon Dashboard \u2192</button>`;
+          <a data-page="home" onclick="navigate('home')">Accueil</a>
+          <a data-page="dashboard" onclick="navigate('dashboard')">Dashboard</a>
+          <a onclick="logout()" class="btn-logout">Déconnexion</a>`;
+        if (hero) hero.innerHTML = `<button class="btn btn-primary" onclick="navigate('dashboard')">Mon Dashboard →</button>`;
       } else {
         nav.innerHTML = `
-          <a onclick="navigate('home')" class="${currentPage === 'home' ? 'active' : ''}">Accueil</a>
-          <a onclick="navigate('login')" class="${currentPage === 'login' ? 'active' : ''}">Connexion</a>
-          <a onclick="navigate('register')" class="${currentPage === 'register' ? 'active' : ''}">Inscription</a>`;
+          <a data-page="home" onclick="navigate('home')">Accueil</a>
+          <a data-page="login" onclick="navigate('login')">Connexion</a>
+          <a data-page="register" onclick="navigate('register')">Inscription</a>`;
         if (hero) hero.innerHTML = `
-          <button class="btn btn-primary" onclick="navigate('register')">S'inscrire \u2192</button>
+          <button class="btn btn-primary" onclick="navigate('register')">S'inscrire →</button>
           <button class="btn btn-secondary" onclick="navigate('login')">Se connecter</button>`;
       }
+
+      const active = nav.querySelector(`[data-page="${currentPage}"]`);
+      if (active) active.classList.add('active');
+
+      nav.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMobileNav);
+      });
     }
 
-    function showAlert(id, msg, type) { const e = document.getElementById(id); e.textContent = msg; e.className = 'alert ' + type; }
-    function clearAlert(id) { const e = document.getElementById(id); e.className = 'alert'; e.textContent = ''; }
+    function showAlert(id, msg, type) {
+      const e = document.getElementById(id);
+      e.textContent = msg;
+      e.className = 'alert ' + type;
+    }
+
+    function clearAlert(id) {
+      const e = document.getElementById(id);
+      e.className = 'alert';
+      e.textContent = '';
+    }
 
     function setLoading(btnId, on) {
       const b = document.getElementById(btnId);
-      if (on) { b.disabled = true; b.dataset.text = b.textContent; b.innerHTML = '<span class="spinner"></span>'; }
-      else { b.disabled = false; b.textContent = b.dataset.text; }
+      if (on) {
+        b.disabled = true;
+        b.dataset.text = b.textContent;
+        b.innerHTML = '<span class="spinner"></span>';
+      } else {
+        b.disabled = false;
+        b.textContent = b.dataset.text;
+      }
     }
 
     async function handleRegister() {
       clearAlert('registerAlert');
-      const email = document.getElementById('regEmail').value.trim();
-      const password = document.getElementById('regPassword').value;
+      const email = regEmail.value.trim();
+      const password = regPassword.value;
       if (!email || !password) return showAlert('registerAlert', 'Veuillez remplir tous les champs.', 'error');
+
       setLoading('registerBtn', true);
       try {
-        const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
         const data = await res.json();
-        if (!res.ok) { showAlert('registerAlert', data.message, 'error'); return; }
+        if (!res.ok) return showAlert('registerAlert', data.message, 'error');
+
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         navigate('dashboard');
-      } catch { showAlert('registerAlert', 'Erreur r\u00e9seau. V\u00e9rifiez que le serveur est lanc\u00e9.', 'error'); }
-      finally { setLoading('registerBtn', false); }
+      } catch {
+        showAlert('registerAlert', 'Erreur réseau.', 'error');
+      } finally {
+        setLoading('registerBtn', false);
+      }
     }
 
     async function handleLogin() {
       clearAlert('loginAlert');
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value;
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
       if (!email || !password) return showAlert('loginAlert', 'Veuillez remplir tous les champs.', 'error');
+
       setLoading('loginBtn', true);
       try {
-        const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
         const data = await res.json();
-        if (!res.ok) { showAlert('loginAlert', data.message, 'error'); return; }
+        if (!res.ok) return showAlert('loginAlert', data.message, 'error');
+
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         navigate('dashboard');
-      } catch { showAlert('loginAlert', 'Erreur r\u00e9seau. V\u00e9rifiez que le serveur est lanc\u00e9.', 'error'); }
-      finally { setLoading('loginBtn', false); }
+      } catch {
+        showAlert('loginAlert', 'Erreur réseau.', 'error');
+      } finally {
+        setLoading('loginBtn', false);
+      }
     }
 
     async function loadUserInfo() {
       try {
-        const res = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + getToken() } });
-        if (!res.ok) { logout(); return; }
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+        if (!res.ok) return logout();
+
         const data = await res.json();
-        document.getElementById('userEmail').textContent = data.user.email;
-        document.getElementById('avatarLetter').textContent = data.user.email.charAt(0).toUpperCase();
-      } catch { logout(); }
+        userEmail.textContent = data.user.email;
+        avatarLetter.textContent = data.user.email.charAt(0).toUpperCase();
+      } catch {
+        logout();
+      }
     }
 
     function logout() {

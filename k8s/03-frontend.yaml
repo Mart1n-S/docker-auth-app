@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authapp-frontend
+  labels:
+    app: authapp-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authapp-frontend
+  template:
+    metadata:
+      labels:
+        app: authapp-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: mart1nsmn/authapp-frontend:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authapp-frontend
+spec:
+  selector:
+    app: authapp-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
