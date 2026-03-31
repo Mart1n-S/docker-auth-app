@@ -67,13 +67,23 @@ spec:
             failureThreshold: 3
             timeoutSeconds: 15
 
-          resources:
-            requests:
-              cpu: "50m"      # MongoDB est plus gourmand
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
+          # ──────────────────────────────────────────────────────────────
+          # NOTE : bloc resources commenté volontairement.
+          # Sur un cluster de production avec suffisamment de ressources,
+          # on définirait des requests et limits pour garantir la QoS :
+          #   requests: { cpu: "200m", memory: "256Mi" }
+          #   limits:   { cpu: "500m", memory: "512Mi" }
+          # Ici, l'instance gratuite Infomaniak (1 vCPU / 2Go RAM) ne peut
+          # pas absorber 3 pods MongoDB + les autres workloads avec ces
+          # garanties, ce qui provoque des FailedScheduling et memory pressure.
+          # ──────────────────────────────────────────────────────────────
+          # resources:
+          #   requests:
+          #     cpu: "200m"
+          #     memory: "256Mi"
+          #   limits:
+          #     cpu: "500m"
+          #     memory: "512Mi"
           volumeMounts:
             - name: mongo-data # Nom du volume à utiliser (défini plus bas)
               mountPath: /data/db # Dossier interne du conteneur où MongoDB écrit ses données
