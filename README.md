@@ -11,7 +11,9 @@ L'infrastructure a été pensée pour la résilience et la sécurité, en utilis
 
 * **Base de données (MongoDB - StatefulSet) :** Au lieu d'un simple Deployment, Mongo tourne sur un **StatefulSet** (3 réplicas). Cela garantit une identité réseau stable (`mongo-0`, `mongo-1`, `mongo-2`) et attache un volume persistant (PVC) unique à chaque pod. Un **Headless Service** (`ClusterIP: None`) gère le réseau interne. Les 3 instances forment un **ReplicaSet MongoDB** (1 Primary, 2 Secondary) pour la tolérance aux pannes.
 * **Backend (Node.js/Express - Deployment) :** Déployé avec un Replica géré par un Deployment. Il est exposé uniquement à l'intérieur du cluster via un service **ClusterIP** pour des raisons de sécurité. Il se connecte au ReplicaSet Mongo via une URI multiple.
-* **Frontend (Nginx/Three.js - Deployment) :** Déployé en tant que Deployment. Il est le point d'entrée de l'application, exposé sur internet via un service de type **LoadBalancer** qui provisionne une IP publique.
+* **Frontend (Nginx/Three.js - Deployment) :** Déployé en tant que Deployment, exposé à l'intérieur du cluster via un service **ClusterIP**. Le trafic public passe par l'Ingress Controller qui route vers ce service.
+
+* **Ingress Controller (ingress-nginx) :** Point d'entrée unique du cluster, installé via Helm. Route les requêtes `/api/*` vers le backend et `/` vers le frontend sur une seule IP publique.
 
 ---
 
@@ -155,12 +157,33 @@ kubectl apply -f k8s/02-backend.yaml
 kubectl apply -f k8s/03-frontend.yaml
 ```
 
-### 6. Accès à l'application
-Récupérez l'IP publique générée par le LoadBalancer :
+### 6. Installation de l'Ingress Controller
+Le cluster nécessite un Ingress Controller pour exposer les applications. Installez ingress-nginx via Helm :
 ```bash
-kubectl get services
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.resources.requests.cpu=50m \
+  --set controller.resources.requests.memory=64Mi
 ```
-*Le service `authapp-frontend` affichera une IP sous la colonne `EXTERNAL-IP` (cela peut prendre 1 à 3 minutes).*
+Attendez l'IP externe :
+```bash
+kubectl get service ingress-nginx-controller -n ingress-nginx -w
+```
+
+### 7. Déploiement de l'Ingress
+```bash
+kubectl apply -f k8s/04-ingress.yaml
+```
+
+### 8. Accès à l'application
+L'application est accessible via l'IP externe de l'Ingress Controller :
+```bash
+kubectl get service ingress-nginx-controller -n ingress-nginx
+```
+Ouvrez `http://<EXTERNAL-IP>` dans votre navigateur.
 
 ---
 
@@ -223,6 +246,12 @@ kubectl scale deployment authapp-frontend --replicas=1
 ## 🧹 Nettoyage complet (Teardown)
 
 Pour supprimer proprement toutes les ressources allouées par ce projet et éviter les frais d'infrastructure, exécutez les commandes suivantes dans l'ordre :
+
+**0. Supprimer l'Ingress et le controller :**
+```bash
+kubectl delete -f k8s/04-ingress.yaml
+helm uninstall ingress-nginx -n ingress-nginx
+```
 
 **1. Supprimer les pods, déploiements et services :**
 ```bash

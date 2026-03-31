@@ -9,6 +9,12 @@ spec:
   selector:
     matchLabels:
       app: authapp-backend
+  strategy:
+    type: RollingUpdate  # mise à jour progressive pod par pod, sans interruption de service
+    rollingUpdate:
+      maxSurge: 1        # K8s crée 1 pod avec la nouvelle version AVANT de supprimer l'ancien
+      maxUnavailable: 0  # aucun pod ne peut être indisponible pendant la mise à jour
+                         # combiné avec maxSurge: 1, on a toujours au moins 1 pod qui sert le trafic
   template:
     metadata:
       labels:
@@ -35,7 +41,39 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: backend-secrets
-                  key: JWT_SECRET # Protège la signature des tokens, n'apparaît jamais sur GitHub
+                  key: JWT_SECRET
+
+          # Kubernetes attend que cette probe soit OK avant d'envoyer du trafic.
+          # Le pod ne reçoit aucune requête tant qu'Express n'a pas démarré,
+          # que MongoDB n'est pas connecté, ET que mongoose.connection.readyState === 1.
+          # Si MongoDB tombe après le démarrage, /api/health retourne 503 et K8s
+          # retire automatiquement le pod du load balancer.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10  # laisse le temps à Node.js + MongoDB de démarrer
+            periodSeconds: 5
+            failureThreshold: 3
+
+          # Kubernetes redémarre le pod si cette probe échoue.
+          # Vérifie que le process Node.js répond toujours ET que MongoDB est connecté.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 20  # plus long que la readiness : on attend que le pod soit prêt d'abord
+            periodSeconds: 10
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "100m"      # 0.1 vCPU garanti par le scheduler
+              memory: "128Mi"  # 128 Mo garantis
+            limits:
+              cpu: "300m"      # le pod ne peut pas dépasser 0.3 vCPU
+              memory: "256Mi"  # au-delà, le pod est OOMKilled
+
 ---
 apiVersion: v1
 kind: Service

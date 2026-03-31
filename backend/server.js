@@ -23,8 +23,11 @@ app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ status: 'unavailable', db: 'disconnected' })
+  }
+  res.json({ status: 'ok', db: 'connected' })
+})
 
 // Connexion MongoDB puis démarrage du serveur
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/authdb')
