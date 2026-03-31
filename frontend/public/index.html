@@ -1188,6 +1188,11 @@
           Votre token est stock&eacute; dans <code>localStorage</code> et envoy&eacute; via le header
           <code>Authorization: Bearer &lt;token&gt;</code> &agrave; chaque requ&ecirc;te API prot&eacute;g&eacute;e.
         </div>
+        <div id="versionBox"
+          style="margin-top:16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); text-align:left;">
+          <span style="color: var(--success)">▶</span> backend : <span id="versionTag"
+            style="color: var(--cyan)">chargement...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -1631,19 +1636,30 @@
     }
 
     async function loadUserInfo() {
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + getToken() }
-        });
-        if (!res.ok) return logout();
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+          });
+          if (!res.ok) return logout();
 
-        const data = await res.json();
-        userEmail.textContent = data.user.email;
-        avatarLetter.textContent = data.user.email.charAt(0).toUpperCase();
-      } catch {
-        logout();
+          const data = await res.json();
+          userEmail.textContent = data.user.email;
+          avatarLetter.textContent = data.user.email.charAt(0).toUpperCase();
+
+          // Vérifie que le backend répond et affiche son statut
+          const health = await fetch('/api/health');
+          const healthData = await health.json();
+          const tag = document.getElementById('versionTag');
+          if (tag) {
+            tag.textContent = healthData.status === 'ok'
+              ? `✓ connecté — db: ${healthData.db}`
+              : '✗ dégradé';
+            tag.style.color = healthData.status === 'ok' ? 'var(--success)' : 'var(--error)';
+          }
+        } catch {
+          logout();
+        }
       }
-    }
 
     function logout() {
       localStorage.removeItem('token');
