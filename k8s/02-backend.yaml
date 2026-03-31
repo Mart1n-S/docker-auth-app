@@ -21,7 +21,7 @@ spec:
             - containerPort: 3000
           env:
             - name: MONGO_URI
-              value: "mongodb://mongo:27017/authdb"
+              value: "mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/authdb?replicaSet=rs0"
             - name: JWT_SECRET
               value: "super_secret_key_change_me"
             - name: PORT
