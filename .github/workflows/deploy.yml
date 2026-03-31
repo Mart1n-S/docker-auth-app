@@ -1,13 +1,12 @@
 name: CI/CD Pipeline
 
-# Le pipeline se déclenche uniquement sur un push sur la branche main
 on:
   push:
     branches:
       - main
 
 jobs:
-  # Stage 1 : Build des images Docker
+  # Stage 1 : Build et push des images Docker
   build:
     name: Build Docker images
     runs-on: ubuntu-latest
@@ -21,7 +20,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image backend
+      - name: Build et push image backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -33,7 +32,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/authapp-backend:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/authapp-backend:latest
 
-      - name: Build image frontend
+      - name: Build et push image frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -58,7 +57,7 @@ jobs:
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 --decode > kubeconfig.yaml
           echo "KUBECONFIG=$PWD/kubeconfig.yaml" >> $GITHUB_ENV
 
-      - name: Appliquer les manifestes (ordre critique pour le StatefulSet)
+      - name: Appliquer les manifestes
         run: |
           # Les secrets et la config doivent exister avant les pods qui en dépendent
           kubectl apply -f k8s/01-mongo.yaml
@@ -66,16 +65,17 @@ jobs:
           kubectl apply -f k8s/03-frontend.yaml
           kubectl apply -f k8s/04-ingress.yaml
 
-      - name: Forcer le redémarrage des Deployments (rolling update)
+      - name: Mettre à jour l'image avec le tag du commit
+        # On patch directement l'image avec le SHA du commit.
+        # Cela force Kubernetes à puller la nouvelle image même si le tag :latest
+        # est identique côté cluster — le SHA garantit l'unicité de chaque build.
         run: |
-          # rollout restart force les pods à redémarrer et puller la nouvelle image
-          # même si le tag :latest n'a pas changé côté Kubernetes
-          kubectl rollout restart deployment/authapp-backend
-          kubectl rollout restart deployment/authapp-frontend
+          kubectl set image deployment/authapp-backend \
+            backend=${{ secrets.DOCKERHUB_USERNAME }}/authapp-backend:${{ github.sha }}
+          kubectl set image deployment/authapp-frontend \
+            frontend=${{ secrets.DOCKERHUB_USERNAME }}/authapp-frontend:${{ github.sha }}
 
-      - name: Attendre que les Deployments soient stables
+      - name: Attendre que les déploiements soient stables
         run: |
-          # rollout status bloque le pipeline jusqu'à ce que tous les pods
-          # soient Running et Ready — si ça échoue, le pipeline échoue aussi
-          kubectl rollout status deployment/authapp-backend --timeout=300s
-          kubectl rollout status deployment/authapp-frontend --timeout=300s
+          kubectl rollout status deployment/authapp-backend --timeout=180s
+          kubectl rollout status deployment/authapp-frontend --timeout=180s

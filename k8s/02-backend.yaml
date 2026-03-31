@@ -12,9 +12,10 @@ spec:
   strategy:
     type: RollingUpdate  # mise à jour progressive pod par pod, sans interruption de service
     rollingUpdate:
-      maxSurge: 1        # K8s crée 1 pod avec la nouvelle version AVANT de supprimer l'ancien
-      maxUnavailable: 0  # aucun pod ne peut être indisponible pendant la mise à jour
-                         # combiné avec maxSurge: 1, on a toujours au moins 1 pod qui sert le trafic
+      maxSurge: 0        # ne crée PAS de pod supplémentaire pendant la mise à jour
+      maxUnavailable: 1  # supprime l'ancien pod AVANT de créer le nouveau
+                         # adapté à un nœud unique avec ressources limitées :
+                         # maxSurge: 1 causerait un Pending faute de CPU/RAM disponible
   template:
     metadata:
       labels:
@@ -66,13 +67,22 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
 
-          resources:
-            requests:
-              cpu: "100m"      # 0.1 vCPU garanti par le scheduler
-              memory: "128Mi"  # 128 Mo garantis
-            limits:
-              cpu: "300m"      # le pod ne peut pas dépasser 0.3 vCPU
-              memory: "256Mi"  # au-delà, le pod est OOMKilled
+          # ──────────────────────────────────────────────────────────────
+          # NOTE : bloc resources commenté volontairement.
+          # Sur un cluster de production on définirait :
+          #   requests: { cpu: "100m", memory: "128Mi" }
+          #   limits:   { cpu: "300m", memory: "256Mi" }
+          # Commenté ici pour compatibilité avec l'instance gratuite
+          # Infomaniak (1 vCPU / 2Go RAM partagés avec 3 pods MongoDB,
+          # le frontend et les composants système).
+          # ──────────────────────────────────────────────────────────────
+          # resources:
+          #   requests:
+          #     cpu: "100m"
+          #     memory: "128Mi"
+          #   limits:
+          #     cpu: "300m"
+          #     memory: "256Mi"
 
 ---
 apiVersion: v1
