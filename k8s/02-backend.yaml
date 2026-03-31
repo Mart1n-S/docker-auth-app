@@ -1,11 +1,11 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment # Contrairement au StatefulSet de Mongo, le Deployment est conçu pour les applications "sans état" (stateless). Ici, les pods backend sont du bétail jetable et 100% interchangeables.
 metadata:
   name: authapp-backend
   labels:
     app: authapp-backend
 spec:
-  replicas: 1
+  replicas: 1 # Nombre d'instances. Facilement scalable car aucun des pods ne gère de disque de données persistant.
   selector:
     matchLabels:
       app: authapp-backend
@@ -19,13 +19,23 @@ spec:
           image: mart1nsmn/authapp-backend:latest
           ports:
             - containerPort: 3000
-          env:
-            - name: MONGO_URI
-              value: "mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/authdb?replicaSet=rs0"
-            - name: JWT_SECRET
-              value: "super_secret_key_change_me"
+          env: # Section pour injecter dynamiquement des variables d'environnement dans Node.js
             - name: PORT
-              value: "3000"
+              value: "3000" # Le port n'est pas un secret, on peut le laisser en clair dans le code
+            
+            # Injection du secret pour MONGO_URI
+            - name: MONGO_URI
+              valueFrom: # Au lieu d'écrire la chaîne de connexion en dur, on dit à K8s d'aller la lire ailleurs
+                secretKeyRef: # On pointe vers un objet de type "Secret" existant dans le cluster
+                  name: backend-secrets # Le nom du coffre-fort créé par notre fichier 00-secrets.yaml
+                  key: MONGO_URI # Le nom de la clé exacte à récupérer et à décoder
+            
+            # Injection du secret pour JWT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: JWT_SECRET # Protège la signature des tokens, n'apparaît jamais sur GitHub
 ---
 apiVersion: v1
 kind: Service
@@ -35,6 +45,6 @@ spec:
   selector:
     app: authapp-backend
   ports:
-    - port: 3000
-      targetPort: 3000
-  type: ClusterIP
+    - port: 3000 # Le port exposé aux autres pods du cluster (ex: le frontend)
+      targetPort: 3000 # Le port sur lequel l'app Node.js écoute vraiment
+  type: ClusterIP # Contrairement à Mongo (où c'était 'None'), ClusterIP génère une IP virtuelle stable. C'est lui qui fait le Load Balancing interne en répartissant le trafic aléatoirement vers les différents réplicas du backend. (Sécurisé car non accessible depuis Internet).

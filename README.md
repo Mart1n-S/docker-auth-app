@@ -109,36 +109,53 @@ Kubernetes a maintenant besoin d'une machine physique/virtuelle pour faire tourn
     $env:KUBECONFIG="chemin/vers/votre-kubeconfig"
     ```
 
-### 2. Déploiement de la base de données (StatefulSet)
-On commence par déployer le StatefulSet et le Headless Service MongoDB :
+### 2. Configuration des Secrets (Sécurité)
+Pour ne pas exposer de données sensibles en clair dans nos fichiers de configuration, nous utilisons un objet Kubernetes `Secret`.
+Créez un fichier `k8s/00-secrets.yaml` (⚠️ **à ajouter à votre `.gitignore`, ne jamais le commiter**) basé sur ce modèle :
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secrets
+type: Opaque
+stringData: 
+  # Renseignez ici votre clé secrète générée (ex: avec openssl rand -base64 62)
+  JWT_SECRET: "colle_ta_chaine_openssl_ici"
+  MONGO_URI: "mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/authdb?replicaSet=rs0"
+```
+Appliquez-le sur le cluster :
+```bash
+kubectl apply -f k8s/00-secrets.yaml
+```
+
+### 3. Déploiement de la base de données (StatefulSet)
+On déploie ensuite le StatefulSet et le Headless Service MongoDB :
 ```bash
 kubectl apply -f k8s/01-mongo.yaml
 ```
 Attendez que les 3 pods (`mongo-0`, `mongo-1`, `mongo-2`) soient au statut `Running` vérifiable avec :
-
 ```bash
 kubectl get pods -w
 ```
 
-### 3. Initialisation du ReplicaSet MongoDB (Étape cruciale)
+### 4. Initialisation du ReplicaSet MongoDB (Étape cruciale)
 Une fois les 3 pods lancés, il faut indiquer à MongoDB de former un cluster (élection du PRIMARY). Exécutez cette commande pour l'initialiser depuis `mongo-0` :
 ```bash
 kubectl exec -it mongo-0 -- mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo-0.mongo:27017'}, {_id: 1, host: 'mongo-1.mongo:27017'}, {_id: 2, host: 'mongo-2.mongo:27017'}]})"
 ```
 Vous pouvez vérifier l'état de l'élection avec la commande suivante, **n'hésitez pas à la relancer plusieurs fois pour voir les changements de rôle (PRIMARY/SECONDARY)** :
-
 ```bash
 kubectl exec -it mongo-0 -- mongosh --eval "rs.status().members.map(m => m.name + ' : ' + m.stateStr)"
 ```
 
-### 4. Déploiement des applications (Backend & Frontend)
-Une fois la BDD prête à recevoir des connexions :
+### 5. Déploiement des applications (Backend & Frontend)
+Une fois la BDD prête à recevoir des connexions et les secrets configurés :
 ```bash
 kubectl apply -f k8s/02-backend.yaml
 kubectl apply -f k8s/03-frontend.yaml
 ```
 
-### 5. Accès à l'application
+### 6. Accès à l'application
 Récupérez l'IP publique générée par le LoadBalancer :
 ```bash
 kubectl get services
@@ -253,6 +270,21 @@ docker push mart1nsmn/authapp-frontend:latest
 kubectl rollout restart deployment authapp-backend
 kubectl rollout restart deployment authapp-frontend
 ```
+
+### 🔄 Mettre à jour les Secrets (Variables d'environnement)
+
+Si vous modifiez les valeurs dans le fichier `k8s/00-secrets.yaml` (ex: rotation de la clé JWT ou changement d'URI de la base de données), les pods en cours d'exécution **ne mettront pas à jour** leurs variables d'environnement automatiquement. 
+
+Il faut appliquer le nouveau secret puis forcer le redémarrage des pods du backend pour qu'ils lisent les nouvelles valeurs :
+
+```bash
+# 1. Mettre à jour le coffre-fort Kubernetes
+kubectl apply -f k8s/00-secrets.yaml
+
+# 2. Redémarrer le backend (Rolling Update sans coupure de service)
+kubectl rollout restart deployment authapp-backend
+```
+*Kubernetes va créer de nouveaux pods avec les nouveaux secrets avant de détruire les anciens, garantissant ainsi une haute disponibilité.*
 
 ### Stack technique
 | Service  | Technologie                    | Rôle                                   |

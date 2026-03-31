@@ -1,11 +1,11 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment # Tout comme le backend, le frontend (Nginx) est "sans état". C'est un simple serveur web qui distribue des fichiers statiques, il est donc très facile à multiplier (scaler).
 metadata:
   name: authapp-frontend
   labels:
     app: authapp-frontend
 spec:
-  replicas: 1
+  replicas: 1 # Nombre d'instances du frontend.
   selector:
     matchLabels:
       app: authapp-frontend
@@ -18,8 +18,9 @@ spec:
         - name: frontend
           image: mart1nsmn/authapp-frontend:latest
           ports:
-            - containerPort: 80
+            - containerPort: 8080 # Très important : Nginx écoute sur le port 8080 et non 80. C'est une bonne pratique de sécurité qui permet de faire tourner le conteneur avec un utilisateur "non-root" (sans privilèges administrateur).
 ---
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -28,6 +29,6 @@ spec:
   selector:
     app: authapp-frontend
   ports:
-    - port: 80
-      targetPort: 80
-  type: LoadBalancer
+    - port: 80 # C'est le port public exposé sur Internet. Les utilisateurs taperont simplement l'IP sans avoir à rajouter ":8080" à la fin.
+      targetPort: 8080 # Le trafic arrivant sur le port 80 public est redirigé vers le port 8080 sécurisé du conteneur.
+  type: LoadBalancer # C'est la grande différence avec le backend et la BDD. Ce type de service contacte automatiquement le fournisseur Cloud (Infomaniak) pour louer et attribuer une véritable adresse IP publique (externe) à l'application. C'est la porte d'entrée du cluster.

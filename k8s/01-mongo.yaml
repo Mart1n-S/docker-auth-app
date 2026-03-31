@@ -1,51 +1,53 @@
-apiVersion: v1
-kind: Service
+apiVersion: v1 # Version de l'API Kubernetes pour les Services
+kind: Service # Type de ressource : un Service réseau
 metadata:
-  name: mongo
+  name: mongo # Nom du service (utilisé pour le DNS interne)
   labels:
-    app: mongo
+    app: mongo # Étiquette pour identifier ce service
 spec:
-  clusterIP: None
+  clusterIP: None # 'None' crée un "Headless Service", indispensable pour un StatefulSet (donne une IP directe par pod au lieu d'une IP globale)
   selector:
-    app: mongo
+    app: mongo # Relie ce service aux pods ayant l'étiquette app:mongo
   ports:
-    - port: 27017
-      targetPort: 27017
----
-apiVersion: apps/v1
-kind: StatefulSet
+    - port: 27017 # Port exposé par le service dans le cluster
+      targetPort: 27017 # Port sur lequel le conteneur écoute réellement
+
+--- # Séparateur de ressources YAML
+
+apiVersion: apps/v1 # Version de l'API pour les workloads complexes
+kind: StatefulSet # Type de déploiement idéal pour les BDD : garantit l'identité réseau (mongo-0, mongo-1...) et le stockage
 metadata:
-  name: mongo
+  name: mongo # Nom de la ressource (qui préfixera le nom des pods)
 spec:
-  serviceName: mongo
-  replicas: 3
+  serviceName: mongo # Fait le lien explicite avec le Headless Service créé au-dessus
+  replicas: 3 # Nombre d'instances MongoDB pour former notre cluster (ReplicaSet)
   selector:
     matchLabels:
-      app: mongo
-  template:
+      app: mongo # Permet au StatefulSet de savoir quels pods il doit gérer
+  template: # Le modèle (blueprint) utilisé pour créer chaque pod
     metadata:
       labels:
-        app: mongo
+        app: mongo # L'étiquette attachée à chaque pod créé
     spec:
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 10 # Donne 10s à MongoDB pour sauvegarder et s'éteindre proprement avant destruction
       containers:
-        - name: mongo
-          image: mongo:7
-          command:
-            - mongod
-            - "--replSet"
-            - "rs0"
-            - "--bind_ip_all"
+        - name: mongo # Nom du conteneur à l'intérieur du pod
+          image: mongo:7 # Image Docker officielle MongoDB (version 7)
+          command: # Surcharge la commande de démarrage par défaut du conteneur
+            - mongod # Lance le processus principal de la base de données
+            - "--replSet" # Active le mode cluster (ReplicaSet) au lieu du mode standalone
+            - "rs0" # Nom arbitraire donné à notre ReplicaSet
+            - "--bind_ip_all" # Permet à Mongo d'accepter les connexions provenant d'autres conteneurs
           ports:
-            - containerPort: 27017
+            - containerPort: 27017 # Indique à Kubernetes le port utilisé par le conteneur
           volumeMounts:
-            - name: mongo-data
-              mountPath: /data/db
-  volumeClaimTemplates:
+            - name: mongo-data # Nom du volume à utiliser (défini plus bas)
+              mountPath: /data/db # Dossier interne du conteneur où MongoDB écrit ses données
+  volumeClaimTemplates: # Demande dynamiquement la création d'un disque dur (PVC) UNIQUE pour chaque pod
     - metadata:
-        name: mongo-data
+        name: mongo-data # Nom de la demande (référencé dans volumeMounts)
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes: ["ReadWriteOnce"] # Le disque ne peut être lu/écrit que par un seul nœud à la fois
         resources:
           requests:
-            storage: 1Gi
+            storage: 1Gi # Alloue 1 Go d'espace de stockage persistant pour chaque instance Mongo
