@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: authapp-ingress
+  annotations:
+    # Indique à Kubernetes quel Ingress Controller doit gérer cette règle
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  # Fait le lien avec le controller ingress-nginx installé via Helm
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # Toutes les requêtes /api/* sont routées vers le backend Node.js
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: authapp-backend
+                port:
+                  number: 3000
+          # Toutes les autres requêtes sont routées vers le frontend Nginx
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authapp-frontend
+                port:
+                  number: 80

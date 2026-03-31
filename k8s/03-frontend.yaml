@@ -1,14 +1,19 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment # Tout comme le backend, le frontend (Nginx) est "sans état". C'est un simple serveur web qui distribue des fichiers statiques, il est donc très facile à multiplier (scaler).
 metadata:
   name: authapp-frontend
   labels:
     app: authapp-frontend
 spec:
-  replicas: 1
+  replicas: 1 # Nombre d'instances du frontend.
   selector:
     matchLabels:
       app: authapp-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -18,7 +23,33 @@ spec:
         - name: frontend
           image: mart1nsmn/authapp-frontend:latest
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+
+          # Nginx sert des fichiers statiques : si le port répond, le pod est prêt.
+          # On utilise une TCPSocket plutôt qu'une requête HTTP car Nginx
+          # peut retourner 404 sur "/" selon la config, mais le port est bien ouvert.
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "50m"       # Nginx statique consomme très peu
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
 ---
 apiVersion: v1
 kind: Service
@@ -28,6 +59,6 @@ spec:
   selector:
     app: authapp-frontend
   ports:
-    - port: 80
-      targetPort: 80
-  type: LoadBalancer
+    - port: 80 # C'est le port public exposé sur Internet. Les utilisateurs taperont simplement l'IP sans avoir à rajouter ":8080" à la fin.
+      targetPort: 8080 # Le trafic arrivant sur le port 80 public est redirigé vers le port 8080 sécurisé du conteneur.
+  type: ClusterIP  # était LoadBalancer, l'Ingress prend maintenant ce rôle
