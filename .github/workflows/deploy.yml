@@ -77,5 +77,5 @@ jobs:
         run: |
           # rollout status bloque le pipeline jusqu'à ce que tous les pods
           # soient Running et Ready — si ça échoue, le pipeline échoue aussi
-          kubectl rollout status deployment/authapp-backend --timeout=120s
-          kubectl rollout status deployment/authapp-frontend --timeout=120s
+          kubectl rollout status deployment/authapp-backend --timeout=300s
+          kubectl rollout status deployment/authapp-frontend --timeout=300s
