@@ -300,6 +300,37 @@ kubectl rollout restart deployment authapp-backend
 kubectl rollout restart deployment authapp-frontend
 ```
 
+### ⚙️ Pipeline CI/CD (GitHub Actions)
+
+Chaque push sur `main` déclenche automatiquement le pipeline `.github/workflows/deploy.yml` :
+
+| Stage      | Action                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **build**  | Build des images Docker backend et frontend, taguées avec le SHA du commit                                                                 |
+| **deploy** | Apply des manifestes K8s dans l'ordre, mise à jour de l'image avec `kubectl set image`, attente de stabilité avec `kubectl rollout status` |
+
+Les secrets nécessaires sont stockés dans GitHub Actions Secrets :
+- `DOCKERHUB_USERNAME` — identifiant Docker Hub
+- `DOCKERHUB_TOKEN` — token d'accès Docker Hub (jamais le mot de passe)
+- `KUBECONFIG_B64` — contenu du kubeconfig encodé en base64
+
+
+### 🔄 Rollback (Retour arrière)
+
+En cas de bug introduit par une nouvelle version, Kubernetes conserve l'historique des déploiements et permet de revenir en arrière instantanément :
+```bash
+# Voir l'historique des déploiements
+kubectl rollout history deployment/authapp-backend
+
+# Revenir à la version précédente
+kubectl rollout undo deployment/authapp-backend
+
+# Vérifier que le rollback est stable
+kubectl rollout status deployment/authapp-backend
+```
+
+*La stratégie `RollingUpdate` avec `maxSurge: 0` et `maxUnavailable: 1` a été choisie pour compatibilité avec un nœud unique (1 vCPU). Sur un cluster multi-nœuds de production, on utiliserait `maxSurge: 1` et `maxUnavailable: 0` pour un zéro downtime garanti.*
+
 ### 🔄 Mettre à jour les Secrets (Variables d'environnement)
 
 Si vous modifiez les valeurs dans le fichier `k8s/00-secrets.yaml` (ex: rotation de la clé JWT ou changement d'URI de la base de données), les pods en cours d'exécution **ne mettront pas à jour** leurs variables d'environnement automatiquement. 
@@ -315,6 +346,18 @@ kubectl rollout restart deployment authapp-backend
 ```
 *Kubernetes va créer de nouveaux pods avec les nouveaux secrets avant de détruire les anciens, garantissant ainsi une haute disponibilité.*
 
+## 📈 Autoscaling
+
+### Cluster Autoscaling (Infomaniak)
+
+Le groupe d'instances est configuré en mode **Autoscaling** avec un minimum de 1 nœud et un maximum de 2.
+
+<img src=".github/images/autoscaling-infomaniak.png" width="500"/>
+
+Infomaniak surveille en permanence les pods en état `Pending` — c'est-à-dire des pods qui ne trouvent pas de nœud avec suffisamment de ressources pour démarrer. Quand cette situation se produit, un nouveau nœud est automatiquement provisionné pour les accueillir. À l'inverse, quand un nœud est sous-utilisé sur une période prolongée, il est supprimé pour réduire les coûts.
+
+> **Note :** Le cluster autoscaling opère au niveau **infrastructure** (ajout/suppression de VMs). Il est complémentaire au HPA Kubernetes qui opère au niveau **applicatif** (ajout/suppression de pods). Les deux mécanismes fonctionnent en tandem : le HPA crée des pods supplémentaires sous charge, et si ces pods ne tiennent pas sur les nœuds existants, le cluster autoscaler provisionne de nouveaux nœuds pour les accueillir.
+> 
 ### Stack technique
 | Service  | Technologie                    | Rôle                                   |
 | -------- | ------------------------------ | -------------------------------------- |
