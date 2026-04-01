@@ -57,13 +57,17 @@ jobs:
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 --decode > kubeconfig.yaml
           echo "KUBECONFIG=$PWD/kubeconfig.yaml" >> $GITHUB_ENV
 
+      - name: Configurer le namespace par défaut
+        # Toutes les ressources applicatives sont dans le namespace authapp
+        run: kubectl config set-context --current --namespace=authapp
+
       - name: Appliquer les manifestes
         run: |
-          # Les secrets et la config doivent exister avant les pods qui en dépendent
           kubectl apply -f k8s/01-mongo.yaml
           kubectl apply -f k8s/02-backend.yaml
           kubectl apply -f k8s/03-frontend.yaml
           kubectl apply -f k8s/04-ingress.yaml
+          kubectl apply -f k8s/05-uptime-kuma.yaml
 
       - name: Mettre à jour l'image avec le tag du commit
         # On patch directement l'image avec le SHA du commit.

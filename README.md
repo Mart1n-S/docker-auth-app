@@ -7,13 +7,15 @@ Ce dépôt présente une application web (Node.js/Three.js) conteneurisée et d�
 
 L'infrastructure a été pensée pour la résilience et la sécurité, en utilisant les concepts avancés de Kubernetes :
 
-
+* **Namespace `authapp` :** Toutes les ressources applicatives sont isolées dans le namespace `authapp` pour une meilleure organisation et séparation des responsabilités vis-à-vis des composants système.
 
 * **Base de données (MongoDB - StatefulSet) :** Au lieu d'un simple Deployment, Mongo tourne sur un **StatefulSet** (3 réplicas). Cela garantit une identité réseau stable (`mongo-0`, `mongo-1`, `mongo-2`) et attache un volume persistant (PVC) unique à chaque pod. Un **Headless Service** (`ClusterIP: None`) gère le réseau interne. Les 3 instances forment un **ReplicaSet MongoDB** (1 Primary, 2 Secondary) pour la tolérance aux pannes.
 * **Backend (Node.js/Express - Deployment) :** Déployé avec un Replica géré par un Deployment. Il est exposé uniquement à l'intérieur du cluster via un service **ClusterIP** pour des raisons de sécurité. Il se connecte au ReplicaSet Mongo via une URI multiple.
 * **Frontend (Nginx/Three.js - Deployment) :** Déployé en tant que Deployment, exposé à l'intérieur du cluster via un service **ClusterIP**. Le trafic public passe par l'Ingress Controller qui route vers ce service.
 
 * **Ingress Controller (ingress-nginx) :** Point d'entrée unique du cluster, installé via Helm. Route les requêtes `/api/*` vers le backend et `/` vers le frontend sur une seule IP publique.
+
+* **Monitoring (Uptime Kuma - Deployment + PVC) :** Interface web de monitoring déployée avec un Deployment et un volume persistant (PVC) pour conserver l'historique. Accessible en interne via port-forward (`kubectl port-forward service/uptime-kuma 3001:3001 -n authapp`). Surveille la disponibilité du frontend, du backend et de MongoDB en temps réel. 
 
 ---
 
@@ -103,61 +105,23 @@ Kubernetes a maintenant besoin d'une machine physique/virtuelle pour faire tourn
 
 ## 🚀 Guide de déploiement (Kubernetes)
 
+### 0. Création du namespace et configuration du contexte
+Toutes les ressources sont déployées dans un namespace dédié `authapp` :
+```bash
+kubectl create namespace authapp
+kubectl config set-context --current --namespace=authapp
+```
+
 ### 1. Prérequis
 * `kubectl` installé sur votre machine.
+* `helm` installé sur votre machine.
 * Un cluster Kubernetes opérationnel.
 * Le fichier kubeconfig configuré :
-    ```powershell
+```powershell
     $env:KUBECONFIG="chemin/vers/votre-kubeconfig"
-    ```
-
-### 2. Configuration des Secrets (Sécurité)
-Pour ne pas exposer de données sensibles en clair dans nos fichiers de configuration, nous utilisons un objet Kubernetes `Secret`.
-Créez un fichier `k8s/00-secrets.yaml` (⚠️ **à ajouter à votre `.gitignore`, ne jamais le commiter**) basé sur ce modèle :
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: backend-secrets
-type: Opaque
-stringData: 
-  # Renseignez ici votre clé secrète générée (ex: avec openssl rand -base64 62)
-  JWT_SECRET: "colle_ta_chaine_openssl_ici"
-  MONGO_URI: "mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/authdb?replicaSet=rs0"
-```
-Appliquez-le sur le cluster :
-```bash
-kubectl apply -f k8s/00-secrets.yaml
 ```
 
-### 3. Déploiement de la base de données (StatefulSet)
-On déploie ensuite le StatefulSet et le Headless Service MongoDB :
-```bash
-kubectl apply -f k8s/01-mongo.yaml
-```
-Attendez que les 3 pods (`mongo-0`, `mongo-1`, `mongo-2`) soient au statut `Running` vérifiable avec :
-```bash
-kubectl get pods -w
-```
-
-### 4. Initialisation du ReplicaSet MongoDB (Étape cruciale)
-Une fois les 3 pods lancés, il faut indiquer à MongoDB de former un cluster (élection du PRIMARY). Exécutez cette commande pour l'initialiser depuis `mongo-0` :
-```bash
-kubectl exec -it mongo-0 -- mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo-0.mongo:27017'}, {_id: 1, host: 'mongo-1.mongo:27017'}, {_id: 2, host: 'mongo-2.mongo:27017'}]})"
-```
-Vous pouvez vérifier l'état de l'élection avec la commande suivante, **n'hésitez pas à la relancer plusieurs fois pour voir les changements de rôle (PRIMARY/SECONDARY)** :
-```bash
-kubectl exec -it mongo-0 -- mongosh --eval "rs.status().members.map(m => m.name + ' : ' + m.stateStr)"
-```
-
-### 5. Déploiement des applications (Backend & Frontend)
-Une fois la BDD prête à recevoir des connexions et les secrets configurés :
-```bash
-kubectl apply -f k8s/02-backend.yaml
-kubectl apply -f k8s/03-frontend.yaml
-```
-
-### 6. Installation de l'Ingress Controller
+### 2. Installation de l'Ingress Controller
 Le cluster nécessite un Ingress Controller pour exposer les applications. Installez ingress-nginx via Helm :
 ```bash
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
@@ -173,79 +137,106 @@ Attendez l'IP externe :
 kubectl get service ingress-nginx-controller -n ingress-nginx -w
 ```
 
-### 7. Déploiement de l'Ingress
+### 3. Configuration des Secrets (Sécurité)
+Créez un fichier `k8s/00-secrets.yaml` (⚠️ **à ajouter à votre `.gitignore`, ne jamais le commiter**) basé sur ce modèle :
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secrets
+  namespace: authapp
+type: Opaque
+stringData: 
+  JWT_SECRET: "colle_ta_chaine_openssl_ici"
+  MONGO_URI: "mongodb://mongo-0.mongo.authapp.svc.cluster.local:27017,mongo-1.mongo.authapp.svc.cluster.local:27017,mongo-2.mongo.authapp.svc.cluster.local:27017/authdb?replicaSet=rs0"
+```
+Appliquez-le sur le cluster :
 ```bash
-kubectl apply -f k8s/04-ingress.yaml
+kubectl apply -f k8s/00-secrets.yaml
 ```
 
-### 8. Accès à l'application
-L'application est accessible via l'IP externe de l'Ingress Controller :
+### 4. Déploiement de la base de données (StatefulSet)
+```bash
+kubectl apply -f k8s/01-mongo.yaml
+kubectl get pods -w
+```
+Attendez que les 3 pods (`mongo-0`, `mongo-1`, `mongo-2`) soient au statut `1/1 Running`.
+
+### 5. Initialisation du ReplicaSet MongoDB (Étape cruciale)
+```bash
+kubectl exec -it mongo-0 -n authapp -- mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo-0.mongo.authapp.svc.cluster.local:27017'}, {_id: 1, host: 'mongo-1.mongo.authapp.svc.cluster.local:27017'}, {_id: 2, host: 'mongo-2.mongo.authapp.svc.cluster.local:27017'}]})"
+```
+Vérifiez l'élection (relancez jusqu'à voir PRIMARY) :
+```bash
+kubectl exec -it mongo-0 -n authapp -- mongosh --eval "rs.status().members.map(m => m.name + ' : ' + m.stateStr)"
+```
+
+### 6. Déploiement des applications
+```bash
+kubectl apply -f k8s/02-backend.yaml
+kubectl apply -f k8s/03-frontend.yaml
+kubectl apply -f k8s/04-ingress.yaml
+kubectl apply -f k8s/05-uptime-kuma.yaml
+kubectl get pods -w
+```
+Attendez que tous les pods soient `1/1 Running`.
+
+### 7. Accès à l'application
 ```bash
 kubectl get service ingress-nginx-controller -n ingress-nginx
 ```
-Ouvrez `http://<EXTERNAL-IP>` dans votre navigateur.
+* Application : `http://<EXTERNAL-IP>`
+  
+* Uptime Kuma (monitoring) : lancez dans un terminal séparé :
+```bash
+kubectl port-forward service/uptime-kuma 3001:3001 -n authapp
+```
+Puis ouvrez `http://localhost:3001`
 
 ---
 
 ## 🧪 Tester la résilience (Haute Disponibilité)
 
-Pour prouver l'efficacité du cluster, vous pouvez simuler la perte de l'instance MongoDB principale :
-1. Identifiez le pod PRIMARY (souvent `mongo-0`).
-2. Détruisez-le : `kubectl delete pod mongo-0`
-3. Constatez l'auto-guérison : `kubectl get pods -w` (Kubernetes recrée le pod immédiatement).
-4. Le trafic est redirigé vers le nouveau PRIMARY élu, sans interruption de l'application web.
+Pour prouver l'efficacité du cluster, simulez la perte de l'instance MongoDB principale :
+1. Identifiez le pod PRIMARY : `kubectl exec -it mongo-0 -n authapp -- mongosh --eval "rs.status().members.map(m => m.name + ' : ' + m.stateStr)"`
+2. Détruisez-le : `kubectl delete pod mongo-0 -n authapp`
+3. Constatez l'auto-guérison : `kubectl get pods -n authapp -w`
+4. Le trafic est redirigé vers le nouveau PRIMARY élu sans interruption.
 
 ---
 
 ## ⚖️ Mise à l'échelle (Scaling) & Load Balancing
 
-Pour prouver que l'architecture est capable d'encaisser une forte montée en charge, nous pouvons multiplier le nombre de conteneurs (pods) à la volée et observer Kubernetes répartir le trafic équitablement entre eux.
-
 ### 1. Augmenter le nombre de réplicas
-Nous allons passer le backend et le frontend à 3 réplicas chacun avec la commande impérative `scale` :
 ```bash
-kubectl scale deployment authapp-backend --replicas=3
-kubectl scale deployment authapp-frontend --replicas=3
+kubectl scale deployment authapp-backend --replicas=3 -n authapp
+kubectl scale deployment authapp-frontend --replicas=3 -n authapp
 ```
-*(Vous pouvez vérifier la création des nouveaux pods avec `kubectl get pods`)*
 
 ### 2. Observer la répartition de charge en direct
-Pour voir le trafic arriver sur les différents pods en temps réel, nous utilisons la lecture des logs avec des filtres spécifiques. 
-
-**Pour observer le Backend (Node.js) :**
 ```bash
-kubectl logs -f -l app=authapp-backend --prefix
+# Backend
+kubectl logs -f -l app=authapp-backend --prefix -n authapp
+# Frontend
+kubectl logs -f -l app=authapp-frontend --prefix -n authapp
 ```
-**Pour observer le Frontend (Nginx) :**
-```bash
-kubectl logs -f -l app=authapp-frontend --prefix
-```
-
-**Explication des paramètres magiques :**
-* `-f` : (Follow) Permet de garder le flux de logs ouvert en direct.
-* `-l app=authapp-backend` : (Label) Cible simultanément tous les pods qui partagent cette étiquette, peu importe leur nombre.
-* `--prefix` : Ajoute le nom exact du pod au début de chaque ligne de log.
 
 ### 3. Résultat attendu
-Générez du trafic en naviguant sur l'application web ou en rafraîchissant la page. Dans votre terminal, vous verrez les requêtes s'afficher avec des préfixes différents, prouvant que le Service Kubernetes agit comme un aiguilleur parfait :
 ```text
 [pod/authapp-backend-8cfc...-7v6gr] Requête reçue : POST /api/auth/login
 [pod/authapp-backend-8cfc...-x2qw4] Requête reçue : POST /api/auth/register
 [pod/authapp-backend-8cfc...-j88dt] Requête reçue : GET /api/auth/me
 ```
 
-### 4. Retour à la configuration initiale (Scale down)
-Une fois le test terminé, pour économiser les ressources du cluster, ramenez les déploiements à 1 seul réplica :
+### 4. Retour à la configuration initiale
 ```bash
-kubectl scale deployment authapp-backend --replicas=1
-kubectl scale deployment authapp-frontend --replicas=1
+kubectl scale deployment authapp-backend --replicas=1 -n authapp
+kubectl scale deployment authapp-frontend --replicas=1 -n authapp
 ```
 
 ---
 
 ## 🧹 Nettoyage complet (Teardown)
-
-Pour supprimer proprement toutes les ressources allouées par ce projet et éviter les frais d'infrastructure, exécutez les commandes suivantes dans l'ordre :
 
 **0. Supprimer l'Ingress et le controller :**
 ```bash
@@ -253,27 +244,29 @@ kubectl delete -f k8s/04-ingress.yaml
 helm uninstall ingress-nginx -n ingress-nginx
 ```
 
-**1. Supprimer les pods, déploiements et services :**
+**1. Supprimer les applications :**
 ```bash
+kubectl delete -f k8s/05-uptime-kuma.yaml
 kubectl delete -f k8s/03-frontend.yaml
 kubectl delete -f k8s/02-backend.yaml
 kubectl delete -f k8s/01-mongo.yaml
 ```
 
 **2. Supprimer les volumes persistants (PVC) :**
-*(Les volumes liés à un StatefulSet ne sont pas supprimés automatiquement par sécurité)*
 ```bash
-kubectl delete pvc -l app=mongo
+kubectl delete pvc --all -n authapp
 ```
 
-**3. Vérifier que tout est nettoyé :**
+**3. Supprimer le namespace :**
 ```bash
-kubectl get all
-kubectl get pvc
+kubectl delete namespace authapp
 ```
-*(Seul le service `kubernetes` par défaut doit subsister).*
 
----
+**4. Vérifier que tout est nettoyé :**
+```bash
+kubectl get all -A
+kubectl get pvc -A
+```
 
 ## 💻 Guide Développeur & Détails de l'application
 
@@ -300,6 +293,37 @@ kubectl rollout restart deployment authapp-backend
 kubectl rollout restart deployment authapp-frontend
 ```
 
+### ⚙️ Pipeline CI/CD (GitHub Actions)
+
+Chaque push sur `main` déclenche automatiquement le pipeline `.github/workflows/deploy.yml` :
+
+| Stage      | Action                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **build**  | Build des images Docker backend et frontend, taguées avec le SHA du commit                                                                 |
+| **deploy** | Apply des manifestes K8s dans l'ordre, mise à jour de l'image avec `kubectl set image`, attente de stabilité avec `kubectl rollout status` |
+
+Les secrets nécessaires sont stockés dans GitHub Actions Secrets :
+- `DOCKERHUB_USERNAME` — identifiant Docker Hub
+- `DOCKERHUB_TOKEN` — token d'accès Docker Hub (jamais le mot de passe)
+- `KUBECONFIG_B64` — contenu du kubeconfig encodé en base64
+
+
+### 🔄 Rollback (Retour arrière)
+
+En cas de bug introduit par une nouvelle version, Kubernetes conserve l'historique des déploiements et permet de revenir en arrière instantanément :
+```bash
+# Voir l'historique des déploiements
+kubectl rollout history deployment/authapp-backend
+
+# Revenir à la version précédente
+kubectl rollout undo deployment/authapp-backend
+
+# Vérifier que le rollback est stable
+kubectl rollout status deployment/authapp-backend
+```
+
+*La stratégie `RollingUpdate` avec `maxSurge: 0` et `maxUnavailable: 1` a été choisie pour compatibilité avec un nœud unique (1 vCPU). Sur un cluster multi-nœuds de production, on utiliserait `maxSurge: 1` et `maxUnavailable: 0` pour un zéro downtime garanti.*
+
 ### 🔄 Mettre à jour les Secrets (Variables d'environnement)
 
 Si vous modifiez les valeurs dans le fichier `k8s/00-secrets.yaml` (ex: rotation de la clé JWT ou changement d'URI de la base de données), les pods en cours d'exécution **ne mettront pas à jour** leurs variables d'environnement automatiquement. 
@@ -315,6 +339,18 @@ kubectl rollout restart deployment authapp-backend
 ```
 *Kubernetes va créer de nouveaux pods avec les nouveaux secrets avant de détruire les anciens, garantissant ainsi une haute disponibilité.*
 
+## 📈 Autoscaling
+
+### Cluster Autoscaling (Infomaniak)
+
+Le groupe d'instances est configuré en mode **Autoscaling** avec un minimum de 1 nœud et un maximum de 2.
+
+<img src=".github/images/autoscaling-infomaniak.png" width="500"/>
+
+Infomaniak surveille en permanence les pods en état `Pending` — c'est-à-dire des pods qui ne trouvent pas de nœud avec suffisamment de ressources pour démarrer. Quand cette situation se produit, un nouveau nœud est automatiquement provisionné pour les accueillir. À l'inverse, quand un nœud est sous-utilisé sur une période prolongée, il est supprimé pour réduire les coûts.
+
+> **Note :** Le cluster autoscaling opère au niveau **infrastructure** (ajout/suppression de VMs). Il est complémentaire au HPA Kubernetes qui opère au niveau **applicatif** (ajout/suppression de pods). Le HPA n'a pas été configuré sur ce projet en raison des contraintes de ressources de l'instance gratuite Infomaniak (1 vCPU / 2Go RAM) — le Metrics Server requis par le HPA consomme à lui seul 100m CPU et 200Mi RAM, ce qui saturerait le nœud. Sur un cluster de production avec des nœuds plus généreux, on configurerait un HPA sur le Deployment `authapp-backend` avec `minReplicas: 1`, `maxReplicas: 3` et `targetCPUUtilizationPercentage: 70`.
+
 ### Stack technique
 | Service  | Technologie                    | Rôle                                   |
 | -------- | ------------------------------ | -------------------------------------- |
@@ -322,7 +358,7 @@ kubectl rollout restart deployment authapp-backend
 | Backend  | Node.js + Express              | API REST + authentification JWT        |
 | BDD      | MongoDB 7                      | Stockage des utilisateurs (ReplicaSet) |
 | Infra    | Docker + Kubernetes            | Conteneurisation et orchestration      |
-
+| Monitoring | Uptime Kuma | Surveillance de disponibilité des services |
 ### Fonctionnement de l'authentification (JWT)
 1. L'utilisateur s'inscrit ou se connecte.
 2. Le serveur renvoie un **token JWT** signé (expire en 24h).
