@@ -1,2 +1,3 @@
 .env
 k8s/00-secrets.yaml
+QUICKSTART.local.md
