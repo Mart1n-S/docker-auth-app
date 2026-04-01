@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment # Uptime Kuma est stateful (données persistées) mais n'a qu'une seule instance
+metadata:        # et pas besoin d'identité réseau stable → Deployment + PVC suffit
+  name: uptime-kuma
+  namespace: authapp
+  labels:
+    app: uptime-kuma
+spec:
+  replicas: 1 # Une seule instance : Uptime Kuma ne supporte pas le multi-réplicas
+              # (SQLite ne permet pas les écritures concurrentes depuis plusieurs pods)
+  selector:
+    matchLabels:
+      app: uptime-kuma
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma
+    spec:
+      containers:
+        - name: uptime-kuma
+          image: louislam/uptime-kuma:1 # Image officielle Uptime Kuma
+          ports:
+            - containerPort: 3001 # Port par défaut de l'interface web Uptime Kuma
+          # Uptime Kuma stocke toute sa configuration et son historique dans /app/data
+          # (base SQLite + fichiers de config). Sans ce volume, toute la config
+          # est perdue au redémarrage du pod — c'est pourquoi on utilise un PVC.
+          volumeMounts:
+            - name: uptime-kuma-data
+              mountPath: /app/data
+          # TCPSocket plutôt qu'HTTP car Uptime Kuma peut mettre du temps
+          # à initialiser son interface web au premier démarrage
+          readinessProbe:
+            tcpSocket:
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+          # ──────────────────────────────────────────────────────────────
+          # NOTE : bloc resources commenté volontairement.
+          # Sur un cluster de production on définirait :
+          #   requests: { cpu: "50m",  memory: "64Mi"  }
+          #   limits:   { cpu: "200m", memory: "256Mi" }
+          # ──────────────────────────────────────────────────────────────
+          # resources:
+          #   requests:
+          #     cpu: "50m"
+          #     memory: "64Mi"
+          #   limits:
+          #     cpu: "200m"
+          #     memory: "256Mi"
+      volumes:
+        - name: uptime-kuma-data
+          persistentVolumeClaim:
+            claimName: uptime-kuma-pvc # Référence la PVC définie ci-dessous
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim # Demande de stockage persistant pour les données d'Uptime Kuma
+metadata:
+  name: uptime-kuma-pvc
+  namespace: authapp
+spec:
+  accessModes:
+    - ReadWriteOnce # Un seul pod peut lire/écrire à la fois — cohérent avec replicas: 1
+  resources:
+    requests:
+      storage: 1Gi # 1Go largement suffisant pour SQLite + historique de monitoring
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma
+  namespace: authapp
+spec:
+  selector:
+    app: uptime-kuma
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP # Accessible uniquement depuis l'intérieur du cluster
+                  # L'accès externe se fait via l'Ingress (défini dans 04-ingress.yaml)

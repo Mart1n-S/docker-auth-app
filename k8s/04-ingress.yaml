@@ -2,6 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: authapp-ingress
+  namespace: authapp
   annotations:
     # Sans rewrite-target, l'URL est transmise telle quelle au service backend
     # /api/auth/register → backend reçoit /api/auth/register ✓

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment # Tout comme le backend, le frontend (Nginx) est "sans état". C'est un simple serveur web qui distribue des fichiers statiques, il est donc très facile à multiplier (scaler).
 metadata:
   name: authapp-frontend
+  namespace: authapp
   labels:
     app: authapp-frontend
 spec:
@@ -63,6 +64,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: authapp-frontend
+  namespace: authapp
 spec:
   selector:
     app: authapp-frontend

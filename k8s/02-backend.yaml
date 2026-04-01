@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment # Contrairement au StatefulSet de Mongo, le Deployment est conçu pour les applications "sans état" (stateless). Ici, les pods backend sont du bétail jetable et 100% interchangeables.
 metadata:
   name: authapp-backend
+  namespace: authapp
   labels:
     app: authapp-backend
 spec:
@@ -89,6 +90,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: authapp-backend
+  namespace: authapp
 spec:
   selector:
     app: authapp-backend
