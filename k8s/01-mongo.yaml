@@ -20,6 +20,8 @@ kind: StatefulSet # Type de déploiement idéal pour les BDD : garantit l'identi
 metadata:
   name: mongo # Nom de la ressource (qui préfixera le nom des pods)
   namespace: authapp
+  labels:
+    app: mongo
 spec:
   serviceName: mongo # Fait le lien explicite avec le Headless Service créé au-dessus
   replicas: 3 # Nombre d'instances MongoDB pour former notre cluster (ReplicaSet)

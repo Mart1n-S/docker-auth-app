@@ -1,0 +1,87 @@
+# ============================================================
+# CONTRAINTE 1 : Interdire le tag "latest" sur les images
+# En production, :latest est dangereux car on ne sait pas
+# quelle version exacte est déployée. On force l'usage de
+# tags précis (ex: sha256, version sémantique).
+# ============================================================
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snolatestimage
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoLatestImage
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snolatestimage
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          endswith(container.image, ":latest")
+          msg := sprintf("Le conteneur '%v' utilise le tag :latest interdit. Utilisez un tag précis.", [container.image])
+        }
+
+---
+# Application de la contrainte au namespace authapp uniquement
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoLatestImage
+metadata:
+  name: no-latest-image
+spec:
+  enforcementAction: warn  # "warn" pour avertir sans bloquer, "deny" pour bloquer
+  match:
+    namespaces: ["authapp"]
+
+---
+# ============================================================
+# CONTRAINTE 2 : Obliger la présence d'un label "app"
+# Sans labels, impossible de cibler les pods avec kubectl
+# ou les Services. C'est une bonne pratique fondamentale.
+# ============================================================
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+        violation[{"msg": msg}] {
+          provided := {label | input.review.object.metadata.labels[label]}
+          required := {label | label := input.parameters.labels[_]}
+          missing := required - provided
+          count(missing) > 0
+          msg := sprintf("Labels obligatoires manquants : %v", [missing])
+        }
+
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: require-app-label
+spec:
+  enforcementAction: warn
+  match:
+    namespaces: ["authapp"]
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet"]
+  parameters:
+    labels: ["app"]
