@@ -238,13 +238,18 @@ kubectl scale deployment authapp-frontend --replicas=1 -n authapp
 
 ## 🧹 Nettoyage complet (Teardown)
 
-**0. Supprimer l'Ingress et le controller :**
+**0. Supprimer la stack de monitoring :**
+```bash
+helm uninstall monitoring -n monitoring
+```
+
+**1. Supprimer l'Ingress et le controller :**
 ```bash
 kubectl delete -f k8s/04-ingress.yaml
 helm uninstall ingress-nginx -n ingress-nginx
 ```
 
-**1. Supprimer les applications :**
+**2. Supprimer les applications :**
 ```bash
 kubectl delete -f k8s/05-uptime-kuma.yaml
 kubectl delete -f k8s/03-frontend.yaml
@@ -252,17 +257,17 @@ kubectl delete -f k8s/02-backend.yaml
 kubectl delete -f k8s/01-mongo.yaml
 ```
 
-**2. Supprimer les volumes persistants (PVC) :**
+**3. Supprimer les volumes persistants (PVC) :**
 ```bash
 kubectl delete pvc --all -n authapp
 ```
 
-**3. Supprimer le namespace :**
+**4. Supprimer le namespace :**
 ```bash
 kubectl delete namespace authapp
 ```
 
-**4. Vérifier que tout est nettoyé :**
+**5. Vérifier que tout est nettoyé :**
 ```bash
 kubectl get all -A
 kubectl get pvc -A
@@ -351,6 +356,40 @@ Infomaniak surveille en permanence les pods en état `Pending` — c'est-à-dire
 
 > **Note :** Le cluster autoscaling opère au niveau **infrastructure** (ajout/suppression de VMs). Il est complémentaire au HPA Kubernetes qui opère au niveau **applicatif** (ajout/suppression de pods). Le HPA n'a pas été configuré sur ce projet en raison des contraintes de ressources de l'instance gratuite Infomaniak (1 vCPU / 2Go RAM) — le Metrics Server requis par le HPA consomme à lui seul 100m CPU et 200Mi RAM, ce qui saturerait le nœud. Sur un cluster de production avec des nœuds plus généreux, on configurerait un HPA sur le Deployment `authapp-backend` avec `minReplicas: 1`, `maxReplicas: 3` et `targetCPUUtilizationPercentage: 70`.
 
+## 📊 Monitoring (Grafana + Prometheus)
+
+La stack de monitoring est installée via Helm dans le namespace `monitoring` :
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set prometheus.prometheusSpec.resources.requests.memory=200Mi \
+  --set prometheus.prometheusSpec.resources.requests.cpu=100m \
+  --set grafana.resources.requests.memory=100Mi \
+  --set grafana.resources.requests.cpu=50m \
+  --set alertmanager.enabled=false \
+  --set prometheus.prometheusSpec.retention=6h
+```
+
+Accès à Grafana via port-forward :
+```bash
+kubectl --namespace monitoring port-forward service/monitoring-grafana 3000:80
+```
+Puis ouvrez `http://localhost:3000` (login: `admin`).
+
+Récupérer le mot de passe admin :
+```bash
+kubectl --namespace monitoring get secrets monitoring-grafana \
+  -o jsonpath="{.data.admin-password}" | base64 -d
+```
+
+Dashboards préconfigurés utiles pour la soutenance :
+- **Kubernetes / Compute Resources / Namespace (Pods)** → sélectionner namespace `authapp` pour voir CPU/RAM de chaque pod en temps réel
+- **Kubernetes / Compute Resources / Node (Pods)** → consommation globale du nœud
+- **Node Exporter / Nodes** → métriques système (CPU, RAM, disque, réseau)
+
 ### Stack technique
 | Service  | Technologie                    | Rôle                                   |
 | -------- | ------------------------------ | -------------------------------------- |
@@ -377,6 +416,7 @@ Infomaniak surveille en permanence les pods en état `Pending` — c'est-à-dire
 | POST    | /api/auth/login    | Non    | Connexion         |
 | GET     | /api/auth/me       | Oui 🔒  | Infos utilisateur |
 | GET     | /api/health        | Non    | Health check      |
+| Grafana + Prometheus | kube-prometheus-stack (Helm) | Métriques et dashboards du cluster |
 
 ### Interface 3D (Frontend)
 Le frontend intègre une scène **Three.js** interactive sur la page d'accueil pour un rendu cyberpunk : Torus knot métallique avec matériau PBR, wireframe translucide, anneaux orbitaux néon, particules flottantes, lumières dynamiques et suivi de la souris.
